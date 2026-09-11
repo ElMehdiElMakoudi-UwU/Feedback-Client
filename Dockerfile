@@ -4,13 +4,17 @@ RUN apk add --no-cache openssl libc6-compat
 # ---- Dependencies ----
 FROM base AS deps
 WORKDIR /app
+# Force devDependencies to install even if the platform injects NODE_ENV=production
+# as a build-time ARG/ENV (e.g. Coolify) — the build needs tailwindcss et al.
+ENV NODE_ENV=development
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
-RUN npm ci
+RUN npm ci --include=dev
 
 # ---- Build ----
 FROM base AS builder
 WORKDIR /app
+ENV NODE_ENV=development
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npx prisma generate
