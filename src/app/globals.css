@@ -1,26 +1,51 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --sindibad-cream: #faf5ec;
+  --sindibad-paper: #fffdf9;
+  --sindibad-ink: #211a17;
+  --sindibad-maroon: #7a1f2b;
+  --sindibad-maroon-dark: #5c1620;
+  --sindibad-rose: #c9a9a6;
+  --sindibad-line: #ddd0c2;
+  --sindibad-muted: #7a6f66;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-display);
+  --font-body-fr: var(--font-body-fr);
+  --font-body-ar: var(--font-body-ar);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  background: var(--sindibad-cream);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-body-fr), serif;
+}
+
+html[dir="rtl"] body {
+  font-family: var(--font-body-ar), serif;
+}
+
+.font-display {
+  font-family: var(--font-display), serif;
+}
+
+html[dir="rtl"] .font-display {
+  font-family: var(--font-body-ar), serif;
+}
+
+.hairline {
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    var(--sindibad-maroon) 15%,
+    var(--sindibad-maroon) 85%,
+    transparent
+  );
+  opacity: 0.55;
 }
