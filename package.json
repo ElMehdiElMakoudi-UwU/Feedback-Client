@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "db:seed": "tsx prisma/seed.ts",
-    "db:ensure-admin": "tsx prisma/ensure-admin.ts"
+    "db:ensure-admin": "tsx prisma/ensure-admin.ts",
+    "menu:export": "tsx scripts/export-menu.ts",
+    "menu:import": "tsx scripts/import-menu.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
