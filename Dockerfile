@@ -36,6 +36,7 @@ COPY --from=builder /app/.next/static ./.next/static
 # traces files needed by the Next.js server, not the `prisma` CLI used by the
 # entrypoint to run migrations on boot).
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/node_modules ./node_modules
 
 COPY docker-entrypoint.sh ./
