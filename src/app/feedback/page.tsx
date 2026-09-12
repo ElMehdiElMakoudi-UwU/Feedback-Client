@@ -1,13 +1,17 @@
 "use client";
 
+import { Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useLanguage, pick } from "@/lib/language-context";
 import { LanguageToggle } from "@/components/language-toggle";
 import { FeedbackForm } from "./feedback-form";
 
-export default function FeedbackPage() {
+function FeedbackPageContent() {
   const { lang } = useLanguage();
+  const searchParams = useSearchParams();
+  const initialTable = searchParams.get("table") ?? undefined;
 
   return (
     <main className="mx-auto min-h-screen max-w-md px-6 py-10">
@@ -41,7 +45,15 @@ export default function FeedbackPage() {
         </p>
       </div>
 
-      <FeedbackForm lang={lang} />
+      <FeedbackForm lang={lang} initialTable={initialTable} />
     </main>
+  );
+}
+
+export default function FeedbackPage() {
+  return (
+    <Suspense fallback={null}>
+      <FeedbackPageContent />
+    </Suspense>
   );
 }

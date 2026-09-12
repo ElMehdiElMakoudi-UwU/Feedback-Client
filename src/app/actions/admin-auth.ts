@@ -32,7 +32,7 @@ export async function loginAdmin(
   }
 
   await createAdminSession(admin.id);
-  redirect("/admin/feedback");
+  redirect(admin.role === "ADMIN" ? "/admin/feedback" : "/admin/loyalty");
 }
 
 export async function logoutAdmin() {

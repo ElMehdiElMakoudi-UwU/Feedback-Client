@@ -48,7 +48,13 @@ function StarRating({
   );
 }
 
-export function FeedbackForm({ lang }: { lang: Lang }) {
+export function FeedbackForm({
+  lang,
+  initialTable,
+}: {
+  lang: Lang;
+  initialTable?: string;
+}) {
   const [state, formAction, pending] = useActionState(
     submitFeedback,
     initialState
@@ -104,6 +110,7 @@ export function FeedbackForm({ lang }: { lang: Lang }) {
           type="text"
           required
           maxLength={20}
+          defaultValue={initialTable}
           placeholder={pick(lang, "مثال: 12", "ex. 12")}
           className="w-full rounded-md border border-[var(--sindibad-line)] bg-[var(--sindibad-paper)] px-4 py-3 text-base focus:border-[var(--sindibad-maroon)] focus:outline-none"
         />

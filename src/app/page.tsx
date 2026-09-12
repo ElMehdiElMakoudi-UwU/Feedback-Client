@@ -30,8 +30,14 @@ export default function Home() {
 
       <div className="flex w-full flex-col gap-3">
         <Link
-          href="/menu"
+          href="/order"
           className="font-display rounded-md border border-[var(--sindibad-ink)] bg-[var(--sindibad-ink)] px-6 py-4 text-lg tracking-wide text-[var(--sindibad-cream)] transition hover:bg-[var(--sindibad-maroon)] hover:border-[var(--sindibad-maroon)]"
+        >
+          {pick(lang, "اطلبوا الآن", "Commander maintenant")}
+        </Link>
+        <Link
+          href="/menu"
+          className="font-display rounded-md border border-[var(--sindibad-ink)] px-6 py-4 text-lg tracking-wide text-[var(--sindibad-ink)] transition hover:border-[var(--sindibad-maroon)] hover:text-[var(--sindibad-maroon)]"
         >
           {pick(lang, "قائمة الطعام", "Voir le menu")}
         </Link>

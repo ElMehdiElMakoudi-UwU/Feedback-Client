@@ -6,7 +6,7 @@ import { useLanguage, pick } from "@/lib/language-context";
 import { LanguageToggle } from "@/components/language-toggle";
 import { logoutAdmin } from "@/app/actions/admin-auth";
 
-export function AdminNav() {
+export function AdminNav({ role }: { role: string }) {
   const { lang } = useLanguage();
 
   return (
@@ -25,24 +25,48 @@ export function AdminNav() {
               {pick(lang, "إدارة سندباد", "Sindibad Admin")}
             </span>
           </span>
+          {role === "ADMIN" && (
+            <>
+              <Link
+                href="/admin/feedback"
+                className="text-sm text-neutral-600 hover:text-neutral-900"
+              >
+                {pick(lang, "التقييمات", "Avis")}
+              </Link>
+              <Link
+                href="/admin/menu"
+                className="text-sm text-neutral-600 hover:text-neutral-900"
+              >
+                {pick(lang, "القائمة", "Menu")}
+              </Link>
+              <Link
+                href="/admin/draw"
+                className="text-sm text-neutral-600 hover:text-neutral-900"
+              >
+                {pick(lang, "السحب", "Tirage")}
+              </Link>
+            </>
+          )}
           <Link
-            href="/admin/feedback"
+            href="/admin/orders"
             className="text-sm text-neutral-600 hover:text-neutral-900"
           >
-            {pick(lang, "التقييمات", "Avis")}
+            {pick(lang, "الطلبات", "Commandes")}
           </Link>
           <Link
-            href="/admin/menu"
+            href="/admin/loyalty"
             className="text-sm text-neutral-600 hover:text-neutral-900"
           >
-            {pick(lang, "القائمة", "Menu")}
+            {pick(lang, "نقاط الولاء", "Fidélité")}
           </Link>
-          <Link
-            href="/admin/draw"
-            className="text-sm text-neutral-600 hover:text-neutral-900"
-          >
-            {pick(lang, "السحب", "Tirage")}
-          </Link>
+          {role === "ADMIN" && (
+            <Link
+              href="/admin/staff"
+              className="text-sm text-neutral-600 hover:text-neutral-900"
+            >
+              {pick(lang, "الموظفون", "Personnel")}
+            </Link>
+          )}
         </div>
         <div className="flex items-center gap-4">
           <LanguageToggle />
