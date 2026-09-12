@@ -14,7 +14,7 @@ export default async function OrderConfirmationPage({
 
   const order = await prisma.order.findUnique({
     where: { id: orderId },
-    include: { items: true },
+    include: { items: true, customer: { select: { phone: true } } },
   });
 
   if (!order || order.tableNumber !== tableNumber) notFound();
@@ -26,6 +26,7 @@ export default async function OrderConfirmationPage({
       guestName={order.guestName}
       total={order.total}
       initialStatus={order.status as OrderStatus}
+      customerPhone={order.customer?.phone ?? null}
       items={order.items.map((item) => ({
         id: item.id,
         nameAr: item.nameAr,

@@ -26,6 +26,7 @@ export function OrderStatusTracker({
   guestName,
   total,
   initialStatus,
+  customerPhone,
   items,
 }: {
   tableNumber: string;
@@ -33,6 +34,7 @@ export function OrderStatusTracker({
   guestName: string | null;
   total: number;
   initialStatus: OrderStatus;
+  customerPhone: string | null;
   items: OrderLine[];
 }) {
   const { lang } = useLanguage();
@@ -123,6 +125,15 @@ export function OrderStatusTracker({
           </p>
         </div>
       </div>
+
+      {customerPhone && (
+        <Link
+          href={`/loyalty?phone=${encodeURIComponent(customerPhone)}`}
+          className="font-display mt-6 block rounded-md border border-[var(--sindibad-ink)] px-6 py-4 text-center text-base tracking-wide text-[var(--sindibad-ink)] transition hover:border-[var(--sindibad-maroon)] hover:text-[var(--sindibad-maroon)]"
+        >
+          {pick(lang, "تتبعوا نقاط ولائكم", "Suivre mes points fidélité")}
+        </Link>
+      )}
     </main>
   );
 }

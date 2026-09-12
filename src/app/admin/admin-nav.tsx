@@ -28,6 +28,12 @@ export function AdminNav({ role }: { role: string }) {
           {role === "ADMIN" && (
             <>
               <Link
+                href="/admin/analytics"
+                className="text-sm text-neutral-600 hover:text-neutral-900"
+              >
+                {pick(lang, "التحليلات", "Analytique")}
+              </Link>
+              <Link
                 href="/admin/feedback"
                 className="text-sm text-neutral-600 hover:text-neutral-900"
               >

@@ -9,52 +9,60 @@ export default function Home() {
   const { lang } = useLanguage();
 
   return (
-    <main className="relative mx-auto flex min-h-screen max-w-md flex-col items-center justify-center gap-10 overflow-hidden px-6 py-12 text-center">
-      <div className="absolute top-6">
+    <main className="mx-auto flex min-h-screen max-w-md flex-col items-center gap-8 px-6 py-8 text-center">
+      <div className="flex w-full justify-end">
         <LanguageToggle />
       </div>
 
-      <div className="flex flex-col items-center">
-        <Image
-          src="/brand/logo-lockup.png"
-          alt="Sindibad Restaurant"
-          width={340}
-          height={238}
-          priority
-          className="w-56 sm:w-64"
-        />
-        <p className="font-display mt-5 text-base tracking-wide text-[var(--sindibad-muted)]">
-          {pick(lang, "أهلاً بكم في مطعم سندباد", "Bienvenue chez Sindibad")}
-        </p>
-      </div>
+      <div className="flex flex-1 flex-col items-center justify-center gap-10">
+        <div className="flex flex-col items-center">
+          <Image
+            src="/brand/logo-lockup.png"
+            alt="Sindibad Restaurant"
+            width={340}
+            height={238}
+            priority
+            className="w-56 sm:w-64"
+          />
+          <p className="font-display mt-5 text-base tracking-wide text-[var(--sindibad-muted)]">
+            {pick(lang, "أهلاً بكم في مطعم سندباد", "Bienvenue chez Sindibad")}
+          </p>
+        </div>
 
-      <div className="flex w-full flex-col gap-3">
-        <Link
-          href="/order"
-          className="font-display rounded-md border border-[var(--sindibad-ink)] bg-[var(--sindibad-ink)] px-6 py-4 text-lg tracking-wide text-[var(--sindibad-cream)] transition hover:bg-[var(--sindibad-maroon)] hover:border-[var(--sindibad-maroon)]"
-        >
-          {pick(lang, "اطلبوا الآن", "Commander maintenant")}
-        </Link>
-        <Link
-          href="/menu"
-          className="font-display rounded-md border border-[var(--sindibad-ink)] px-6 py-4 text-lg tracking-wide text-[var(--sindibad-ink)] transition hover:border-[var(--sindibad-maroon)] hover:text-[var(--sindibad-maroon)]"
-        >
-          {pick(lang, "قائمة الطعام", "Voir le menu")}
-        </Link>
-        <a
-          href="/menu/sindibad-menu.pdf"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="font-display rounded-md border border-[var(--sindibad-ink)] px-6 py-4 text-lg tracking-wide text-[var(--sindibad-ink)] transition hover:border-[var(--sindibad-maroon)] hover:text-[var(--sindibad-maroon)]"
-        >
-          {pick(lang, "القائمة PDF", "Menu en PDF")}
-        </a>
-        <Link
-          href="/feedback"
-          className="font-display rounded-md border border-[var(--sindibad-ink)] px-6 py-4 text-lg tracking-wide text-[var(--sindibad-ink)] transition hover:border-[var(--sindibad-maroon)] hover:text-[var(--sindibad-maroon)]"
-        >
-          {pick(lang, "شاركونا رأيكم", "Laisser un avis")}
-        </Link>
+        <div className="flex w-full flex-col gap-3">
+          <Link
+            href="/order"
+            className="font-display rounded-md border border-[var(--sindibad-ink)] bg-[var(--sindibad-ink)] px-6 py-4 text-lg tracking-wide text-[var(--sindibad-cream)] transition hover:bg-[var(--sindibad-maroon)] hover:border-[var(--sindibad-maroon)]"
+          >
+            {pick(lang, "اطلبوا الآن", "Commander maintenant")}
+          </Link>
+          <Link
+            href="/menu"
+            className="font-display rounded-md border border-[var(--sindibad-ink)] px-6 py-4 text-lg tracking-wide text-[var(--sindibad-ink)] transition hover:border-[var(--sindibad-maroon)] hover:text-[var(--sindibad-maroon)]"
+          >
+            {pick(lang, "قائمة الطعام", "Voir le menu")}
+          </Link>
+          <a
+            href="/menu/sindibad-menu.pdf"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-display rounded-md border border-[var(--sindibad-ink)] px-6 py-4 text-lg tracking-wide text-[var(--sindibad-ink)] transition hover:border-[var(--sindibad-maroon)] hover:text-[var(--sindibad-maroon)]"
+          >
+            {pick(lang, "القائمة PDF", "Menu en PDF")}
+          </a>
+          <Link
+            href="/feedback"
+            className="font-display rounded-md border border-[var(--sindibad-ink)] px-6 py-4 text-lg tracking-wide text-[var(--sindibad-ink)] transition hover:border-[var(--sindibad-maroon)] hover:text-[var(--sindibad-maroon)]"
+          >
+            {pick(lang, "شاركونا رأيكم", "Laisser un avis")}
+          </Link>
+          <Link
+            href="/loyalty"
+            className="font-display rounded-md border border-[var(--sindibad-ink)] px-6 py-4 text-lg tracking-wide text-[var(--sindibad-ink)] transition hover:border-[var(--sindibad-maroon)] hover:text-[var(--sindibad-maroon)]"
+          >
+            {pick(lang, "نقاط الولاء", "Mes points fidélité")}
+          </Link>
+        </div>
       </div>
 
       <div className="flex items-center gap-4">
