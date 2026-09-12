@@ -54,7 +54,7 @@ export function AdminMenuView({ sections }: { sections: MenuSection[] }) {
             key={section.id}
             className="rounded-lg border-2 border-neutral-300 p-5"
           >
-            <div className="mb-5 flex items-center justify-between">
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-xl font-semibold">
                 {section.nameFr}{" "}
                 <span className="text-base font-normal text-neutral-400">
@@ -78,7 +78,7 @@ export function AdminMenuView({ sections }: { sections: MenuSection[] }) {
                   key={category.id}
                   className="rounded-md border border-neutral-200 p-4"
                 >
-                  <div className="mb-3 flex items-center justify-between">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                     <h3 className="font-medium">
                       {category.nameFr}{" "}
                       <span className="font-normal text-neutral-400">
@@ -100,7 +100,7 @@ export function AdminMenuView({ sections }: { sections: MenuSection[] }) {
                     {category.items.map((item) => (
                       <div
                         key={item.id}
-                        className="flex items-center justify-between gap-4 py-3"
+                        className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
                       >
                         <div className={!item.available ? "opacity-40" : ""}>
                           <p className="font-medium">
