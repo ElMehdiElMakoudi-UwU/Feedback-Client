@@ -4,6 +4,12 @@ import { cookies } from "next/headers";
 const COOKIE_NAME = "sindibad_admin_session";
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
 
+// A `Secure` cookie is dropped by browsers when set over plain HTTP, which
+// silently breaks login until the deployment has TLS. Set COOKIE_SECURE=false
+// while serving over HTTP only; flip it back (or unset it) once HTTPS is live.
+const COOKIE_SECURE =
+  process.env.NODE_ENV === "production" && process.env.COOKIE_SECURE !== "false";
+
 function getSecret(): string {
   const secret = process.env.SESSION_SECRET;
   if (!secret) throw new Error("SESSION_SECRET is not set");
@@ -23,7 +29,7 @@ export async function createAdminSession(adminId: string) {
   const cookieStore = await cookies();
   cookieStore.set(COOKIE_NAME, value, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: COOKIE_SECURE,
     sameSite: "lax",
     path: "/",
     expires: new Date(expires),
