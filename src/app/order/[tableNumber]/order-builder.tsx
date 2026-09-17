@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { useLanguage, pick } from "@/lib/language-context";
 import { LanguageToggle } from "@/components/language-toggle";
-import { placeOrder } from "@/app/actions/orders";
+import { placeOrder, addItemsToOrder } from "@/app/actions/orders";
+import { isTakeawayTable, isDeliveryTable } from "@/lib/order-mode";
 import type { MenuSectionView, MenuItemView } from "@/app/menu/types";
 
 type Size = "REGULAR" | "LARGE";
@@ -38,53 +39,73 @@ function ItemRow({
   const orderable = item.price != null || item.priceLarge != null;
 
   return (
-    <div className="flex flex-col gap-2 py-4">
-      <div className="flex items-baseline justify-between gap-4">
-        <div className="flex items-baseline gap-2">
-          <h3 className="font-display text-lg text-[var(--sindibad-ink)]">
+    <div className="flex flex-col overflow-hidden rounded-lg border border-[var(--sindibad-line)] bg-[var(--sindibad-paper)]">
+      <div className="aspect-square w-full bg-[var(--sindibad-line)]/30">
+        {item.photoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={item.photoUrl}
+            alt={pick(lang, item.nameAr, item.nameFr)}
+            className="h-full w-full object-cover"
+          />
+        ) : null}
+      </div>
+
+      <div className="flex flex-1 flex-col gap-1 p-3">
+        <div className="flex items-baseline justify-between gap-2">
+          <h3 className="font-display text-base leading-tight text-[var(--sindibad-ink)]">
             {pick(lang, item.nameAr, item.nameFr)}
           </h3>
-          {(item.noteAr || item.noteFr) && (
-            <span className="whitespace-nowrap rounded-full bg-[var(--sindibad-rose)]/25 px-2 py-0.5 text-xs text-[var(--sindibad-maroon)]">
-              {pick(lang, item.noteAr ?? "", item.noteFr ?? "")}
+          {!hasSizes && item.price != null && (
+            <span className="whitespace-nowrap text-sm text-[var(--sindibad-ink)]">
+              {item.price} {pick(lang, "درهم", "DH")}
             </span>
           )}
         </div>
-      </div>
-      {(item.descriptionAr || item.descriptionFr) && (
-        <p className="text-sm leading-relaxed text-[var(--sindibad-muted)]">
-          {pick(lang, item.descriptionAr ?? "", item.descriptionFr ?? "")}
-        </p>
-      )}
 
-      {!orderable ? null : hasSizes ? (
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => onAdd("REGULAR", item.price as number)}
-            className="rounded-md border border-[var(--sindibad-line)] px-3 py-2 text-sm transition hover:border-[var(--sindibad-maroon)] hover:text-[var(--sindibad-maroon)]"
-          >
-            {pick(lang, "إضافة (صغير)", "Ajouter (M)")} · {item.price}{" "}
-            {pick(lang, "درهم", "DH")}
-          </button>
-          <button
-            type="button"
-            onClick={() => onAdd("LARGE", item.priceLarge as number)}
-            className="rounded-md border border-[var(--sindibad-line)] px-3 py-2 text-sm transition hover:border-[var(--sindibad-maroon)] hover:text-[var(--sindibad-maroon)]"
-          >
-            {pick(lang, "إضافة (كبير)", "Ajouter (L)")} · {item.priceLarge}{" "}
-            {pick(lang, "درهم", "DH")}
-          </button>
+        {item.noteAr || item.noteFr ? (
+          <span className="w-fit whitespace-nowrap rounded-full bg-[var(--sindibad-rose)]/25 px-2 py-0.5 text-xs text-[var(--sindibad-maroon)]">
+            {pick(lang, item.noteAr ?? "", item.noteFr ?? "")}
+          </span>
+        ) : null}
+
+        {(item.descriptionAr || item.descriptionFr) && (
+          <p className="text-xs leading-relaxed text-[var(--sindibad-muted)]">
+            {pick(lang, item.descriptionAr ?? "", item.descriptionFr ?? "")}
+          </p>
+        )}
+
+        <div className="mt-auto pt-2">
+          {!orderable ? null : hasSizes ? (
+            <div className="flex flex-col gap-1.5">
+              <button
+                type="button"
+                onClick={() => onAdd("REGULAR", item.price as number)}
+                className="rounded-md border border-[var(--sindibad-line)] px-2 py-1.5 text-xs transition hover:border-[var(--sindibad-maroon)] hover:text-[var(--sindibad-maroon)]"
+              >
+                {pick(lang, "إضافة (صغير)", "Ajouter (M)")} · {item.price}{" "}
+                {pick(lang, "درهم", "DH")}
+              </button>
+              <button
+                type="button"
+                onClick={() => onAdd("LARGE", item.priceLarge as number)}
+                className="rounded-md border border-[var(--sindibad-line)] px-2 py-1.5 text-xs transition hover:border-[var(--sindibad-maroon)] hover:text-[var(--sindibad-maroon)]"
+              >
+                {pick(lang, "إضافة (كبير)", "Ajouter (L)")} · {item.priceLarge}{" "}
+                {pick(lang, "درهم", "DH")}
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onAdd(null, item.price as number)}
+              className="w-full rounded-md border border-[var(--sindibad-line)] px-2 py-1.5 text-xs transition hover:border-[var(--sindibad-maroon)] hover:text-[var(--sindibad-maroon)]"
+            >
+              {pick(lang, "إضافة", "Ajouter")}
+            </button>
+          )}
         </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => onAdd(null, item.price as number)}
-          className="w-fit rounded-md border border-[var(--sindibad-line)] px-3 py-2 text-sm transition hover:border-[var(--sindibad-maroon)] hover:text-[var(--sindibad-maroon)]"
-        >
-          {pick(lang, "إضافة", "Ajouter")} · {item.price} {pick(lang, "درهم", "DH")}
-        </button>
-      )}
+      </div>
     </div>
   );
 }
@@ -92,15 +113,21 @@ function ItemRow({
 export function OrderBuilder({
   tableNumber,
   sections,
+  initialPhone = "",
+  initialAddress = "",
+  addToOrderId,
 }: {
   tableNumber: string;
   sections: MenuSectionView[];
+  initialPhone?: string;
+  initialAddress?: string;
+  addToOrderId?: string;
 }) {
   const { lang } = useLanguage();
+  const isTakeaway = isTakeawayTable(tableNumber);
+  const isDelivery = isDeliveryTable(tableNumber);
   const [cart, setCart] = useState<Record<string, CartLine>>({});
   const [cartOpen, setCartOpen] = useState(false);
-  const [guestName, setGuestName] = useState("");
-  const [phone, setPhone] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -195,17 +222,24 @@ export function OrderBuilder({
   function submitOrder() {
     setError(null);
     startTransition(async () => {
-      const result = await placeOrder({
-        tableNumber,
-        guestName,
-        phone,
-        note,
-        items: lines.map((line) => ({
-          menuItemId: line.menuItemId,
-          size: line.size ?? undefined,
-          quantity: line.quantity,
-        })),
-      });
+      const cartItems = lines.map((line) => ({
+        menuItemId: line.menuItemId,
+        size: line.size ?? undefined,
+        quantity: line.quantity,
+      }));
+      const result = addToOrderId
+        ? await addItemsToOrder({
+            orderId: addToOrderId,
+            tableNumber,
+            items: cartItems,
+          })
+        : await placeOrder({
+            tableNumber,
+            phone: initialPhone,
+            address: initialAddress,
+            note,
+            items: cartItems,
+          });
       if (result?.status === "error") {
         setError(result.message);
       }
@@ -231,7 +265,11 @@ export function OrderBuilder({
           <LanguageToggle />
         </div>
         <p className="mt-2 text-sm text-[var(--sindibad-muted)]">
-          {pick(lang, "طاولة رقم", "Table n°")} {tableNumber}
+          {isTakeaway
+            ? pick(lang, "طلب خارجي", "Commande à emporter")
+            : isDelivery
+              ? pick(lang, "طلب توصيل", "Commande en livraison")
+              : `${pick(lang, "طاولة رقم", "Table n°")} ${tableNumber}`}
         </p>
 
         <div className="mt-3">
@@ -279,7 +317,9 @@ export function OrderBuilder({
 
       <div className="mb-8 text-center">
         <h1 className="font-display text-3xl tracking-wide">
-          {pick(lang, "اطلبوا الآن", "Commander")}
+          {addToOrderId
+            ? pick(lang, "إضافة إلى طلبكم", "Ajouter à ma commande")
+            : pick(lang, "اطلبوا الآن", "Commander")}
         </h1>
         <div className="hairline mx-auto mt-3 w-40" />
       </div>
@@ -302,7 +342,7 @@ export function OrderBuilder({
                   <h3 className="font-display mb-2 text-center text-xl tracking-[0.08em] text-[var(--sindibad-maroon)]">
                     {pick(lang, category.nameAr, category.nameFr)}
                   </h3>
-                  <div className="flex flex-col divide-y divide-[var(--sindibad-line)]">
+                  <div className="grid grid-cols-2 gap-3">
                     {category.items.map((item) => (
                       <ItemRow
                         key={item.id}
@@ -368,40 +408,22 @@ export function OrderBuilder({
                 })}
               </div>
 
-              <div className="flex flex-col gap-3 py-4">
-                <input
-                  type="text"
-                  value={guestName}
-                  onChange={(e) => setGuestName(e.target.value)}
-                  maxLength={60}
-                  placeholder={pick(lang, "اسمكم (اختياري)", "Votre nom (optionnel)")}
-                  className="w-full rounded-md border border-[var(--sindibad-line)] bg-[var(--sindibad-paper)] px-4 py-3 text-sm focus:border-[var(--sindibad-maroon)] focus:outline-none"
-                />
-                <input
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  maxLength={20}
-                  placeholder={pick(
-                    lang,
-                    "رقم الهاتف لنقاط الولاء (اختياري)",
-                    "Téléphone pour les points fidélité (optionnel)"
-                  )}
-                  className="w-full rounded-md border border-[var(--sindibad-line)] bg-[var(--sindibad-paper)] px-4 py-3 text-sm focus:border-[var(--sindibad-maroon)] focus:outline-none"
-                />
-                <textarea
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  rows={2}
-                  maxLength={500}
-                  placeholder={pick(
-                    lang,
-                    "ملاحظة على الطلب (اختياري)",
-                    "Note sur la commande (optionnel)"
-                  )}
-                  className="w-full rounded-md border border-[var(--sindibad-line)] bg-[var(--sindibad-paper)] px-4 py-3 text-sm focus:border-[var(--sindibad-maroon)] focus:outline-none"
-                />
-              </div>
+              {!addToOrderId && (
+                <div className="flex flex-col gap-3 py-4">
+                  <textarea
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    rows={2}
+                    maxLength={500}
+                    placeholder={pick(
+                      lang,
+                      "ملاحظة على الطلب (اختياري)",
+                      "Note sur la commande (optionnel)"
+                    )}
+                    className="w-full rounded-md border border-[var(--sindibad-line)] bg-[var(--sindibad-paper)] px-4 py-3 text-sm focus:border-[var(--sindibad-maroon)] focus:outline-none"
+                  />
+                </div>
+              )}
 
               {error && <p className="pb-3 text-sm text-red-700">{error}</p>}
             </div>
@@ -424,7 +446,9 @@ export function OrderBuilder({
             >
               {pending
                 ? pick(lang, "جارٍ الإرسال...", "Envoi...")
-                : pick(lang, "تأكيد الطلب", "Valider la commande")}
+                : addToOrderId
+                  ? pick(lang, "إضافة إلى الطلب", "Ajouter à la commande")
+                  : pick(lang, "تأكيد الطلب", "Valider la commande")}
             </button>
           </div>
         </div>

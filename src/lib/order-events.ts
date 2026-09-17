@@ -1,10 +1,13 @@
 import { EventEmitter } from "events";
 import type { OrderStatus } from "@/lib/order-status";
 
+export type OrderEventKind = "created" | "items_added" | "status_changed";
+
 export type OrderEvent = {
   orderId: string;
   tableNumber: string;
   status: OrderStatus;
+  kind: OrderEventKind;
 };
 
 const globalForOrderEvents = globalThis as unknown as {

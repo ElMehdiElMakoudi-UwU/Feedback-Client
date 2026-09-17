@@ -8,8 +8,10 @@ import { LanguageToggle } from "@/components/language-toggle";
 import {
   ORDER_STATUS_FLOW,
   ORDER_STATUS_LABEL,
+  canAddItemsToOrder,
   type OrderStatus,
 } from "@/lib/order-status";
+import { isTakeawayTable, isDeliveryTable } from "@/lib/order-mode";
 
 type OrderLine = {
   id: string;
@@ -24,6 +26,7 @@ export function OrderStatusTracker({
   tableNumber,
   orderId,
   guestName,
+  deliveryAddress,
   total,
   initialStatus,
   customerPhone,
@@ -32,12 +35,15 @@ export function OrderStatusTracker({
   tableNumber: string;
   orderId: string;
   guestName: string | null;
+  deliveryAddress: string | null;
   total: number;
   initialStatus: OrderStatus;
   customerPhone: string | null;
   items: OrderLine[];
 }) {
   const { lang } = useLanguage();
+  const isTakeaway = isTakeawayTable(tableNumber);
+  const isDelivery = isDeliveryTable(tableNumber);
   const [status, setStatus] = useState<OrderStatus>(initialStatus);
 
   useEffect(() => {
@@ -51,6 +57,7 @@ export function OrderStatusTracker({
 
   const label = ORDER_STATUS_LABEL[status];
   const isCancelled = status === "CANCELLED";
+  const isCompleted = status === "COMPLETED";
   const stepIndex = ORDER_STATUS_FLOW.indexOf(status);
 
   return (
@@ -73,9 +80,18 @@ export function OrderStatusTracker({
 
       <div className="mb-8 rounded-md border border-[var(--sindibad-line)] bg-[var(--sindibad-paper)] p-6 text-center">
         <p className="text-sm text-[var(--sindibad-muted)]">
-          {pick(lang, "طاولة رقم", "Table n°")} {tableNumber}
+          {isTakeaway
+            ? pick(lang, "طلب خارجي", "Commande à emporter")
+            : isDelivery
+              ? pick(lang, "طلب توصيل", "Commande en livraison")
+              : `${pick(lang, "طاولة رقم", "Table n°")} ${tableNumber}`}
           {guestName ? ` · ${guestName}` : ""}
         </p>
+        {isDelivery && deliveryAddress && (
+          <p className="mt-1 text-xs text-[var(--sindibad-muted)]">
+            {deliveryAddress}
+          </p>
+        )}
         <p className="mt-3 text-5xl">{label.emoji}</p>
         <p className="font-display mt-3 text-2xl tracking-wide text-[var(--sindibad-maroon)]">
           {pick(lang, label.ar, label.fr)}
@@ -125,6 +141,24 @@ export function OrderStatusTracker({
           </p>
         </div>
       </div>
+
+      {canAddItemsToOrder(status) && (
+        <Link
+          href={`/order/${encodeURIComponent(tableNumber)}?addToOrder=${orderId}`}
+          className="font-display mt-6 block rounded-md border border-[var(--sindibad-ink)] px-6 py-4 text-center text-base tracking-wide text-[var(--sindibad-ink)] transition hover:border-[var(--sindibad-maroon)] hover:text-[var(--sindibad-maroon)]"
+        >
+          {pick(lang, "إضافة صنف إلى الطلب", "Ajouter un article")}
+        </Link>
+      )}
+
+      {isCompleted && (
+        <Link
+          href={`/feedback?table=${encodeURIComponent(tableNumber)}`}
+          className="font-display mt-6 block rounded-md bg-[var(--sindibad-maroon)] px-6 py-4 text-center text-base tracking-wide text-white transition hover:opacity-90"
+        >
+          {pick(lang, "شاركونا رأيكم", "Laisser un avis")}
+        </Link>
+      )}
 
       {customerPhone && (
         <Link

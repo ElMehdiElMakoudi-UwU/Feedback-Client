@@ -108,6 +108,7 @@ model Order {
   id                 String              @id @default(cuid())
   tableNumber        String
   guestName          String?
+  deliveryAddress    String?
   status             String              @default("SENT") // "SENT" | "CONFIRMED" | "PREPARING" | "READY" | "COMPLETED" | "CANCELLED"
   note               String?
   total              Float

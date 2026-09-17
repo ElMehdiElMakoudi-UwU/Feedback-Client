@@ -39,6 +39,7 @@ export default async function MenuPage() {
         price: item.price,
         priceLarge: item.priceLarge,
         comingSoon: item.comingSoon,
+        photoUrl: item.photoUrl,
       })),
     })),
   }));

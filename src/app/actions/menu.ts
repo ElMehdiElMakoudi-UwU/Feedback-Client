@@ -27,7 +27,19 @@ const itemSchema = z.object({
   price: z.coerce.number().min(0).max(100000).optional(),
   priceLarge: z.coerce.number().min(0).max(100000).optional(),
   comingSoon: z.coerce.boolean().optional(),
+  photoUrl: z.string().trim().url().max(2000).optional(),
 });
+
+const photoSchema = z.object({
+  id: z.string().min(1),
+  photoUrl: z.union([z.string().trim().url().max(2000), z.literal("")]),
+});
+
+function extractImageUrl(input: string): string {
+  const trimmed = input.trim();
+  const match = trimmed.match(/<img[^>]*\bsrc=["']([^"']+)["']/i);
+  return match ? match[1] : trimmed;
+}
 
 function revalidateMenu() {
   revalidatePath("/admin/menu");
@@ -96,6 +108,9 @@ export async function createItem(formData: FormData) {
     price: formData.get("price") || undefined,
     priceLarge: formData.get("priceLarge") || undefined,
     comingSoon: formData.get("comingSoon") === "on" || undefined,
+    photoUrl: formData.get("photoUrl")
+      ? extractImageUrl(String(formData.get("photoUrl")))
+      : undefined,
   });
   if (!parsed.success) return;
 
@@ -114,8 +129,23 @@ export async function createItem(formData: FormData) {
       price: parsed.data.comingSoon ? null : parsed.data.price ?? null,
       priceLarge: parsed.data.priceLarge ?? null,
       comingSoon: parsed.data.comingSoon ?? false,
+      photoUrl: parsed.data.photoUrl || null,
       sortOrder: count,
     },
+  });
+  revalidateMenu();
+}
+
+export async function updateItemPhoto(formData: FormData) {
+  await requireAdmin();
+  const parsed = photoSchema.safeParse({
+    id: formData.get("id"),
+    photoUrl: extractImageUrl(String(formData.get("photoUrl") ?? "")),
+  });
+  if (!parsed.success) return;
+  await prisma.menuItem.update({
+    where: { id: parsed.data.id },
+    data: { photoUrl: parsed.data.photoUrl || null },
   });
   revalidateMenu();
 }

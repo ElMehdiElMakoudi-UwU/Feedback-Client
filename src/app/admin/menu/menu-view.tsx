@@ -9,6 +9,7 @@ import {
   createItem,
   deleteItem,
   toggleItemAvailability,
+  updateItemPhoto,
 } from "@/app/actions/menu";
 
 type MenuItem = {
@@ -23,6 +24,7 @@ type MenuItem = {
   priceLarge: number | null;
   comingSoon: boolean;
   available: boolean;
+  photoUrl: string | null;
 };
 
 type MenuCategory = {
@@ -133,6 +135,36 @@ export function AdminMenuView({ sections }: { sections: MenuSection[] }) {
                               {item.noteFr} {item.noteAr && `/ ${item.noteAr}`}
                             </p>
                           )}
+                          <form
+                            action={updateItemPhoto}
+                            className="mt-2 flex items-center gap-2"
+                          >
+                            <input type="hidden" name="id" value={item.id} />
+                            {item.photoUrl && (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={item.photoUrl}
+                                alt=""
+                                className="h-8 w-8 rounded object-cover"
+                              />
+                            )}
+                            <input
+                              name="photoUrl"
+                              defaultValue={item.photoUrl ?? ""}
+                              placeholder={pick(
+                                lang,
+                                "رابط الصورة",
+                                "URL de la photo"
+                              )}
+                              className="w-56 rounded-md border border-neutral-300 px-2 py-1 text-xs"
+                            />
+                            <button
+                              type="submit"
+                              className="text-xs text-neutral-600 hover:underline"
+                            >
+                              {pick(lang, "حفظ", "Enregistrer")}
+                            </button>
+                          </form>
                         </div>
                         <div className="flex shrink-0 items-center gap-3">
                           <form action={toggleItemAvailability}>
@@ -241,6 +273,16 @@ export function AdminMenuView({ sections }: { sections: MenuSection[] }) {
                           "Prix grande taille (optionnel)"
                         )}
                         className="rounded-md border border-neutral-300 px-3 py-2 text-sm"
+                      />
+                      <input
+                        name="photoUrl"
+                        type="url"
+                        placeholder={pick(
+                          lang,
+                          "رابط صورة الطبق (اختياري)",
+                          "URL de la photo du plat (optionnel)"
+                        )}
+                        className="col-span-2 rounded-md border border-neutral-300 px-3 py-2 text-sm"
                       />
                       <label className="col-span-2 flex items-center gap-2 text-sm text-neutral-600">
                         <input type="checkbox" name="comingSoon" />

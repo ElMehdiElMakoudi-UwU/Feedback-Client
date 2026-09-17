@@ -9,6 +9,7 @@ export type MenuItemView = {
   price: number | null;
   priceLarge: number | null;
   comingSoon: boolean;
+  photoUrl: string | null;
 };
 
 export type MenuCategoryView = {

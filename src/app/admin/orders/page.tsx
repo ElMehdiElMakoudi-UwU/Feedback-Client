@@ -5,27 +5,38 @@ import { OrdersBoard } from "./orders-board";
 
 export const dynamic = "force-dynamic";
 
+const RECENT_COMPLETED_LIMIT = 10;
+
 export default async function AdminOrdersPage() {
   await requireStaff();
 
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
 
-  const [orders, completedTodayAgg, cancelledTodayCount] = await Promise.all([
-    prisma.order.findMany({
-      where: { status: { notIn: ["COMPLETED", "CANCELLED"] } },
-      orderBy: [{ tableNumber: "asc" }, { createdAt: "asc" }],
-      include: { items: true },
-    }),
-    prisma.order.aggregate({
-      where: { status: "COMPLETED", createdAt: { gte: todayStart } },
-      _sum: { total: true },
-      _count: true,
-    }),
-    prisma.order.count({
-      where: { status: "CANCELLED", createdAt: { gte: todayStart } },
-    }),
-  ]);
+  const [activeOrders, recentCompletedOrders, completedTodayAgg, cancelledTodayCount] =
+    await Promise.all([
+      prisma.order.findMany({
+        where: { status: { notIn: ["COMPLETED", "CANCELLED"] } },
+        orderBy: [{ tableNumber: "asc" }, { createdAt: "asc" }],
+        include: { items: true, customer: { select: { phone: true } } },
+      }),
+      prisma.order.findMany({
+        where: { status: "COMPLETED", createdAt: { gte: todayStart } },
+        orderBy: { updatedAt: "desc" },
+        take: RECENT_COMPLETED_LIMIT,
+        include: { items: true, customer: { select: { phone: true } } },
+      }),
+      prisma.order.aggregate({
+        where: { status: "COMPLETED", createdAt: { gte: todayStart } },
+        _sum: { total: true },
+        _count: true,
+      }),
+      prisma.order.count({
+        where: { status: "CANCELLED", createdAt: { gte: todayStart } },
+      }),
+    ]);
+
+  const orders = [...activeOrders, ...recentCompletedOrders];
 
   return (
     <OrdersBoard
@@ -38,6 +49,8 @@ export default async function AdminOrdersPage() {
         id: order.id,
         tableNumber: order.tableNumber,
         guestName: order.guestName,
+        deliveryAddress: order.deliveryAddress,
+        customerPhone: order.customer?.phone ?? null,
         note: order.note,
         total: order.total,
         hasLoyaltyPhone: order.customerId !== null,

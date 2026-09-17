@@ -6,10 +6,13 @@ export const dynamic = "force-dynamic";
 
 export default async function OrderPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ tableNumber: string }>;
+  searchParams: Promise<{ phone?: string; address?: string; addToOrder?: string }>;
 }) {
   const { tableNumber } = await params;
+  const { phone, address, addToOrder } = await searchParams;
 
   const sections = await prisma.menuSection.findMany({
     orderBy: { sortOrder: "asc" },
@@ -45,9 +48,18 @@ export default async function OrderPage({
         price: item.price,
         priceLarge: item.priceLarge,
         comingSoon: item.comingSoon,
+        photoUrl: item.photoUrl,
       })),
     })),
   }));
 
-  return <OrderBuilder tableNumber={tableNumber} sections={data} />;
+  return (
+    <OrderBuilder
+      tableNumber={tableNumber}
+      sections={data}
+      initialPhone={phone ?? ""}
+      initialAddress={address ?? ""}
+      addToOrderId={addToOrder}
+    />
+  );
 }

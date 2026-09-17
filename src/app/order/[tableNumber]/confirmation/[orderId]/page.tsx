@@ -24,6 +24,7 @@ export default async function OrderConfirmationPage({
       tableNumber={order.tableNumber}
       orderId={order.id}
       guestName={order.guestName}
+      deliveryAddress={order.deliveryAddress}
       total={order.total}
       initialStatus={order.status as OrderStatus}
       customerPhone={order.customer?.phone ?? null}

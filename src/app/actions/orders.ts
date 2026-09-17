@@ -6,7 +6,11 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireStaff } from "@/lib/require-admin";
 import { emitOrderEvent } from "@/lib/order-events";
-import { nextOrderStatus, type OrderStatus } from "@/lib/order-status";
+import {
+  nextOrderStatus,
+  canAddItemsToOrder,
+  type OrderStatus,
+} from "@/lib/order-status";
 
 const phoneRegex = /^[0-9+\s-]{8,20}$/;
 
@@ -19,6 +23,7 @@ const placeOrderSchema = z.object({
     .regex(phoneRegex, "Enter a valid phone number")
     .optional()
     .or(z.literal("")),
+  address: z.string().trim().max(300).optional().or(z.literal("")),
   note: z.string().trim().max(500).optional().or(z.literal("")),
   items: z
     .array(
@@ -37,6 +42,27 @@ export type PlaceOrderState =
   | { status: "idle" }
   | { status: "error"; message: string };
 
+const addOrderItemsSchema = z.object({
+  orderId: z.string().min(1),
+  tableNumber: z.string().trim().min(1).max(20),
+  items: z
+    .array(
+      z.object({
+        menuItemId: z.string().min(1),
+        size: z.enum(["REGULAR", "LARGE"]).optional(),
+        quantity: z.coerce.number().int().min(1).max(50),
+      })
+    )
+    .min(1, "Add at least one item"),
+});
+
+export type AddOrderItemsInput = z.infer<typeof addOrderItemsSchema>;
+
+export type AddOrderItemsState =
+  | { status: "idle" }
+  | { status: "error"; message: string };
+
+
 export async function placeOrder(
   input: PlaceOrderInput
 ): Promise<PlaceOrderState> {
@@ -48,7 +74,7 @@ export async function placeOrder(
     };
   }
 
-  const { tableNumber, guestName, phone, note, items } = parsed.data;
+  const { tableNumber, guestName, phone, address, note, items } = parsed.data;
 
   const menuItems = await prisma.menuItem.findMany({
     where: { id: { in: items.map((item) => item.menuItemId) }, available: true },
@@ -106,6 +132,7 @@ export async function placeOrder(
       data: {
         tableNumber,
         guestName: guestName || null,
+        deliveryAddress: address || null,
         note: note || null,
         total,
         customerId,
@@ -118,10 +145,97 @@ export async function placeOrder(
     orderId: order.id,
     tableNumber: order.tableNumber,
     status: order.status as OrderStatus,
+    kind: "created",
   });
 
   revalidatePath("/admin/orders");
   redirect(`/order/${encodeURIComponent(tableNumber)}/confirmation/${order.id}`);
+}
+
+export async function addItemsToOrder(
+  input: AddOrderItemsInput
+): Promise<AddOrderItemsState> {
+  const parsed = addOrderItemsSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      status: "error",
+      message: parsed.error.issues[0]?.message ?? "Invalid order",
+    };
+  }
+
+  const { orderId, tableNumber, items } = parsed.data;
+
+  const order = await prisma.order.findUnique({ where: { id: orderId } });
+  if (!order || order.tableNumber !== tableNumber) {
+    return { status: "error", message: "Order not found" };
+  }
+  if (!canAddItemsToOrder(order.status as OrderStatus)) {
+    return {
+      status: "error",
+      message: "This order no longer accepts changes",
+    };
+  }
+
+  const menuItems = await prisma.menuItem.findMany({
+    where: { id: { in: items.map((item) => item.menuItemId) }, available: true },
+  });
+  const menuItemById = new Map(menuItems.map((item) => [item.id, item]));
+
+  const lineItems: {
+    menuItemId: string;
+    nameAr: string;
+    nameFr: string;
+    size: string | null;
+    unitPrice: number;
+    quantity: number;
+  }[] = [];
+
+  for (const item of items) {
+    const menuItem = menuItemById.get(item.menuItemId);
+    if (!menuItem) {
+      return { status: "error", message: "One of the items is no longer available" };
+    }
+
+    const unitPrice =
+      item.size === "LARGE" ? menuItem.priceLarge : menuItem.price;
+    if (unitPrice == null) {
+      return { status: "error", message: "One of the items has no price set" };
+    }
+
+    lineItems.push({
+      menuItemId: menuItem.id,
+      nameAr: menuItem.nameAr,
+      nameFr: menuItem.nameFr,
+      size: item.size ?? null,
+      unitPrice,
+      quantity: item.quantity,
+    });
+  }
+
+  const addedTotal = lineItems.reduce(
+    (sum, item) => sum + item.unitPrice * item.quantity,
+    0
+  );
+
+  await prisma.$transaction(async (tx) => {
+    await tx.orderItem.createMany({
+      data: lineItems.map((line) => ({ ...line, orderId })),
+    });
+    await tx.order.update({
+      where: { id: orderId },
+      data: { total: { increment: addedTotal } },
+    });
+  });
+
+  emitOrderEvent({
+    orderId: order.id,
+    tableNumber: order.tableNumber,
+    status: order.status as OrderStatus,
+    kind: "items_added",
+  });
+
+  revalidatePath("/admin/orders");
+  redirect(`/order/${encodeURIComponent(tableNumber)}/confirmation/${orderId}`);
 }
 
 async function awardLoyaltyPoints(
@@ -172,6 +286,7 @@ async function setOrderStatus(orderId: string, status: OrderStatus) {
     orderId: order.id,
     tableNumber: order.tableNumber,
     status: order.status as OrderStatus,
+    kind: "status_changed",
   });
 
   revalidatePath("/admin/orders");

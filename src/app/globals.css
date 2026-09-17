@@ -1,14 +1,14 @@
 @import "tailwindcss";
 
 :root {
-  --sindibad-cream: #faf5ec;
-  --sindibad-paper: #fffdf9;
-  --sindibad-ink: #211a17;
-  --sindibad-maroon: #7a1f2b;
-  --sindibad-maroon-dark: #5c1620;
-  --sindibad-rose: #c9a9a6;
-  --sindibad-line: #ddd0c2;
-  --sindibad-muted: #7a6f66;
+  --sindibad-cream: #16110b;
+  --sindibad-paper: #1c150e;
+  --sindibad-ink: #f3e7cf;
+  --sindibad-maroon: #d4af37;
+  --sindibad-maroon-dark: #a9791f;
+  --sindibad-rose: #e7c873;
+  --sindibad-line: #4a3c22;
+  --sindibad-muted: #b8a888;
 }
 
 @theme inline {
@@ -19,7 +19,12 @@
 
 html,
 body {
-  background: var(--sindibad-cream);
+  background-color: var(--sindibad-cream);
+  background-image:
+    radial-gradient(ellipse at top, rgba(212, 175, 55, 0.08), transparent 60%),
+    url("/brand/motif-tile.svg");
+  background-repeat: no-repeat, repeat;
+  background-size: auto, 360px 360px;
 }
 
 body {
@@ -36,6 +41,11 @@ html[dir="rtl"] body {
 
 html[dir="rtl"] .font-display {
   font-family: var(--font-body-ar), serif;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--sindibad-maroon);
 }
 
 .hairline {
