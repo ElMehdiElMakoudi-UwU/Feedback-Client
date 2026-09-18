@@ -127,6 +127,17 @@ model PointsTransaction {
   createdAt   DateTime   @default(now())
 }
 
+model LoyaltyOffer {
+  id         String   @id @default(cuid())
+  titleAr    String
+  titleFr    String
+  pointsCost Int
+  active     Boolean  @default(true)
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
 model Order {
   id                 String              @id @default(cuid())
   tableNumber        String

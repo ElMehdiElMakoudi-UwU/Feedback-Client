@@ -9,26 +9,36 @@ export default async function LoyaltyPage({
 }: {
   searchParams: Promise<{ phone?: string; error?: string; ok?: string }>;
 }) {
-  await requireStaff();
+  const staff = await requireStaff();
   const { phone, error, ok } = await searchParams;
   const trimmedPhone = phone?.trim() || "";
 
-  const customer = trimmedPhone
-    ? await prisma.customer.findUnique({
-        where: { phone: trimmedPhone },
-        include: {
-          transactions: {
-            orderBy: { createdAt: "desc" },
-            take: 15,
+  const [customer, topCustomers] = await Promise.all([
+    trimmedPhone
+      ? prisma.customer.findUnique({
+          where: { phone: trimmedPhone },
+          include: {
+            transactions: {
+              orderBy: { createdAt: "desc" },
+              take: 15,
+            },
           },
-        },
-      })
-    : null;
+        })
+      : Promise.resolve(null),
+    prisma.customer.findMany({
+      where: { points: { gt: 0 } },
+      orderBy: { points: "desc" },
+      take: 10,
+      select: { id: true, phone: true, points: true },
+    }),
+  ]);
 
   return (
     <LoyaltyView
+      role={staff.role}
       phone={trimmedPhone}
       customer={customer}
+      topCustomers={topCustomers}
       error={error}
       ok={ok}
     />

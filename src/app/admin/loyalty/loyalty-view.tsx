@@ -1,9 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useLanguage, pick } from "@/lib/language-context";
 import { addPointsForOrder, redeemPoints } from "@/app/actions/loyalty";
 import { KpiCard } from "@/app/admin/kpi-card";
-import { IconGift, IconClipboard } from "@/app/admin/stock/icons";
+import { IconGift, IconClipboard, IconSettings, IconStar } from "@/app/admin/stock/icons";
 
 type Transaction = {
   id: string;
@@ -19,14 +20,24 @@ type Customer = {
   transactions: Transaction[];
 } | null;
 
+type TopCustomer = {
+  id: string;
+  phone: string;
+  points: number;
+};
+
 export function LoyaltyView({
+  role,
   phone,
   customer,
+  topCustomers,
   error,
   ok,
 }: {
+  role: string;
   phone: string;
   customer: Customer;
+  topCustomers: TopCustomer[];
   error?: string;
   ok?: string;
 }) {
@@ -46,9 +57,48 @@ export function LoyaltyView({
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-10">
-      <h1 className="mb-8 text-2xl font-semibold tracking-tight">
-        {pick(lang, "برنامج الولاء", "Programme de fidélité")}
-      </h1>
+      <div className="mb-8 flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold tracking-tight">
+          {pick(lang, "برنامج الولاء", "Programme de fidélité")}
+        </h1>
+        {role === "ADMIN" && (
+          <Link
+            href="/admin/loyalty/settings"
+            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-neutral-300 px-3.5 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50"
+          >
+            <IconSettings className="h-4 w-4" />
+            {pick(lang, "إعدادات العروض", "Offres & réglages")}
+          </Link>
+        )}
+      </div>
+
+      {topCustomers.length > 0 && (
+        <div className="mb-8 rounded-lg border border-neutral-200 p-6">
+          <h2 className="mb-4 flex items-center gap-2 text-sm font-medium text-neutral-700">
+            <IconStar className="h-4 w-4 text-amber-500" />
+            {pick(lang, "أعلى الزبائن رصيداً", "Meilleurs clients")}
+          </h2>
+          <div className="flex flex-col divide-y divide-neutral-100">
+            {topCustomers.map((c, i) => (
+              <a
+                key={c.id}
+                href={`/admin/loyalty?phone=${encodeURIComponent(c.phone)}`}
+                className="flex items-center justify-between gap-3 py-2.5 text-sm hover:bg-neutral-50"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-xs font-medium text-neutral-500">
+                    {i + 1}
+                  </span>
+                  <span className="text-neutral-800">{c.phone}</span>
+                </div>
+                <span className="font-medium text-neutral-900">
+                  {c.points} <span className="font-normal text-neutral-400">{pick(lang, "نقطة", "pts")}</span>
+                </span>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
 
       <form method="get" className="flex flex-col gap-3 sm:flex-row">
         <input

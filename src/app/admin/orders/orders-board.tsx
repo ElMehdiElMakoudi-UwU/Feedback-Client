@@ -274,7 +274,8 @@ function OrderCard({
         ))}
       </div>
 
-      {isDeliveryTable(order.tableNumber) && (
+      {(isDeliveryTable(order.tableNumber) ||
+        isTakeawayTable(order.tableNumber)) && (
         <div className="mt-3 rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-900">
           {order.customerPhone && (
             <p className="font-medium">
