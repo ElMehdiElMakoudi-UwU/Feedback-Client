@@ -1,6 +1,8 @@
 "use client";
 
 import { useLanguage, pick } from "@/lib/language-context";
+import { KpiCard } from "@/app/admin/kpi-card";
+import { IconStar, IconUsers, IconAlertTriangle } from "@/app/admin/stock/icons";
 
 type FeedbackEntry = {
   id: string;
@@ -12,45 +14,94 @@ type FeedbackEntry = {
   createdAt: Date;
 };
 
+type ItemRatingSummary = {
+  menuItemId: string;
+  nameAr: string;
+  nameFr: string;
+  count: number;
+  average: number;
+};
+
 export function AdminFeedbackView({
   feedback,
   foodAvg,
   serviceAvg,
   lowRatingCount,
+  itemRatingSummaries,
 }: {
   feedback: FeedbackEntry[];
   foodAvg: string;
   serviceAvg: string;
   lowRatingCount: number;
+  itemRatingSummaries: ItemRatingSummary[];
 }) {
   const { lang } = useLanguage();
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-10">
-      <h1 className="mb-8 text-2xl font-semibold tracking-tight">
+      <h1 className="mb-6 text-2xl font-semibold tracking-tight">
         {pick(lang, "التقييمات", "Avis")}
       </h1>
 
-      <div className="mb-10 grid grid-cols-3 gap-4">
-        <div className="rounded-lg border border-neutral-200 p-5">
-          <p className="text-sm text-neutral-500">
-            {pick(lang, "متوسط تقييم الطعام", "Note moyenne (plat)")}
-          </p>
-          <p className="mt-1 text-2xl font-semibold">{foodAvg}</p>
-        </div>
-        <div className="rounded-lg border border-neutral-200 p-5">
-          <p className="text-sm text-neutral-500">
-            {pick(lang, "متوسط تقييم الخدمة", "Note moyenne (service)")}
-          </p>
-          <p className="mt-1 text-2xl font-semibold">{serviceAvg}</p>
-        </div>
-        <div className="rounded-lg border border-neutral-200 p-5">
-          <p className="text-sm text-neutral-500">
-            {pick(lang, "تقييمات منخفضة (≤2)", "Notes basses (≤2)")}
-          </p>
-          <p className="mt-1 text-2xl font-semibold">{lowRatingCount}</p>
-        </div>
+      <div className="mb-10 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <KpiCard
+          icon={IconStar}
+          label={pick(lang, "متوسط تقييم الطعام", "Note moyenne (plat)")}
+          value={foodAvg}
+          accent
+        />
+        <KpiCard
+          icon={IconUsers}
+          label={pick(lang, "متوسط تقييم الخدمة", "Note moyenne (service)")}
+          value={serviceAvg}
+          accent
+        />
+        <KpiCard
+          icon={IconAlertTriangle}
+          label={pick(lang, "تقييمات منخفضة (≤2)", "Notes basses (≤2)")}
+          value={lowRatingCount}
+          tone={lowRatingCount > 0 ? "warn" : "good"}
+        />
       </div>
+
+      {itemRatingSummaries.length > 0 && (
+        <div className="mb-10">
+          <h2 className="mb-4 text-lg font-semibold tracking-tight">
+            {pick(lang, "تقييم الأطباق", "Notes par plat")}
+          </h2>
+          <div className="flex flex-col divide-y divide-neutral-100 rounded-lg border border-neutral-200">
+            {itemRatingSummaries.map((item) => {
+              const flagged = item.average <= 2.5;
+              return (
+                <div
+                  key={item.menuItemId}
+                  className="flex items-center justify-between px-4 py-3"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-medium">
+                      {pick(lang, item.nameAr, item.nameFr)}
+                    </span>
+                    {flagged && (
+                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+                        {pick(lang, "يحتاج إلى اهتمام", "Nécessite attention")}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-neutral-600">
+                    <span className="font-semibold text-neutral-900">
+                      {item.average.toFixed(1)}★
+                    </span>
+                    <span className="text-neutral-400">
+                      ({item.count}{" "}
+                      {pick(lang, "تقييم", item.count > 1 ? "avis" : "avis")})
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-col divide-y divide-neutral-100">
         {feedback.length === 0 && (

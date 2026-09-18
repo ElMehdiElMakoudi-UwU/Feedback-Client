@@ -3,6 +3,8 @@
 import { useActionState } from "react";
 import { useLanguage, pick } from "@/lib/language-context";
 import { createCashier, deleteStaff } from "@/app/actions/staff";
+import { KpiCard } from "@/app/admin/kpi-card";
+import { IconUsers, IconClipboard } from "@/app/admin/stock/icons";
 
 type Cashier = {
   id: string;
@@ -29,9 +31,28 @@ export function StaffView({ cashiers }: { cashiers: Cashier[] }) {
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-10">
-      <h1 className="mb-8 text-2xl font-semibold tracking-tight">
+      <h1 className="mb-6 text-2xl font-semibold tracking-tight">
         {pick(lang, "الموظفون (الصندوق)", "Personnel (caisse)")}
       </h1>
+
+      <div className="mb-8 grid grid-cols-2 gap-3">
+        <KpiCard
+          icon={IconUsers}
+          label={pick(lang, "عدد الكاشير", "Caissiers actifs")}
+          value={cashiers.length}
+        />
+        <KpiCard
+          icon={IconClipboard}
+          label={pick(lang, "أضيف هذا الشهر", "Ajoutés ce mois-ci")}
+          value={
+            cashiers.filter((c) => {
+              const now = new Date();
+              const d = new Date(c.createdAt);
+              return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+            }).length
+          }
+        />
+      </div>
 
       <form
         action={formAction}

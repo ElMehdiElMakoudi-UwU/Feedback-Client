@@ -5,10 +5,13 @@ import Link from "next/link";
 import {
   submitFeedback,
   type FeedbackFormState,
+  type RateableMenuItem,
 } from "@/app/actions/feedback";
 import { pick, type Lang } from "@/lib/language-context";
 
 const initialState: FeedbackFormState = { status: "idle" };
+
+export type RateableItem = RateableMenuItem;
 
 function StarRating({
   name,
@@ -51,9 +54,11 @@ function StarRating({
 export function FeedbackForm({
   lang,
   initialTable,
+  rateableItems = [],
 }: {
   lang: Lang;
   initialTable?: string;
+  rateableItems?: RateableItem[];
 }) {
   const [state, formAction, pending] = useActionState(
     submitFeedback,
@@ -62,6 +67,7 @@ export function FeedbackForm({
   const [foodRating, setFoodRating] = useState(0);
   const [serviceRating, setServiceRating] = useState(0);
   const [enteredDraw, setEnteredDraw] = useState(false);
+  const [itemRatings, setItemRatings] = useState<Record<string, number>>({});
 
   if (state.status === "success") {
     return (
@@ -129,6 +135,43 @@ export function FeedbackForm({
         value={serviceRating}
         onChange={setServiceRating}
       />
+
+      {rateableItems.length > 0 && (
+        <div>
+          <p className="mb-3 text-sm font-medium text-[var(--sindibad-ink)]">
+            {pick(
+              lang,
+              "قيّموا الأطباق التي طلبتموها (اختياري)",
+              "Notez les plats commandés (optionnel)"
+            )}
+          </p>
+          <div className="flex flex-col gap-4">
+            {rateableItems.map((item) => (
+              <StarRating
+                key={item.menuItemId}
+                name={`item-${item.menuItemId}`}
+                label={pick(lang, item.nameAr, item.nameFr)}
+                value={itemRatings[item.menuItemId] ?? 0}
+                onChange={(value) =>
+                  setItemRatings((prev) => ({
+                    ...prev,
+                    [item.menuItemId]: value,
+                  }))
+                }
+              />
+            ))}
+          </div>
+          <input
+            type="hidden"
+            name="itemRatings"
+            value={JSON.stringify(
+              Object.entries(itemRatings)
+                .filter(([, rating]) => rating > 0)
+                .map(([menuItemId, rating]) => ({ menuItemId, rating }))
+            )}
+          />
+        </div>
+      )}
 
       <div>
         <label

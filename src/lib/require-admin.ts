@@ -23,3 +23,9 @@ export async function requireAdmin() {
   if (user.role !== "ADMIN") redirect("/admin/loyalty");
   return user;
 }
+
+export async function requireWorker() {
+  const user = await requireStaff();
+  if (user.role !== "WORKER") redirect("/admin/loyalty");
+  return user;
+}

@@ -2,6 +2,8 @@
 
 import { useLanguage, pick } from "@/lib/language-context";
 import { addPointsForOrder, redeemPoints } from "@/app/actions/loyalty";
+import { KpiCard } from "@/app/admin/kpi-card";
+import { IconGift, IconClipboard } from "@/app/admin/stock/icons";
 
 type Transaction = {
   id: string;
@@ -48,18 +50,18 @@ export function LoyaltyView({
         {pick(lang, "برنامج الولاء", "Programme de fidélité")}
       </h1>
 
-      <form method="get" className="flex gap-3">
+      <form method="get" className="flex flex-col gap-3 sm:flex-row">
         <input
           type="tel"
           name="phone"
           defaultValue={phone}
           placeholder={pick(lang, "رقم الهاتف", "Numéro de téléphone")}
           required
-          className="w-full rounded-lg border border-neutral-300 px-4 py-3 text-base focus:border-neutral-900 focus:outline-none"
+          className="w-full rounded-lg border border-neutral-300 px-4 py-3.5 text-base focus:border-neutral-900 focus:outline-none"
         />
         <button
           type="submit"
-          className="shrink-0 rounded-lg bg-neutral-900 px-5 py-3 text-sm font-medium text-white hover:bg-neutral-700"
+          className="shrink-0 rounded-lg bg-neutral-900 px-5 py-3.5 text-sm font-medium text-white hover:bg-neutral-700 active:bg-neutral-800"
         >
           {pick(lang, "بحث", "Chercher")}
         </button>
@@ -84,6 +86,24 @@ export function LoyaltyView({
               {pick(lang, "نقطة", "points")}
             </span>
           </p>
+
+          {customer && (
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <KpiCard
+                icon={IconClipboard}
+                label={pick(lang, "عدد العمليات", "Transactions")}
+                value={customer.transactions.length}
+              />
+              <KpiCard
+                icon={IconGift}
+                label={pick(lang, "نقاط مكتسبة (آخر العمليات)", "Points gagnés (récents)")}
+                value={customer.transactions
+                  .filter((t) => t.points > 0)
+                  .reduce((n, t) => n + t.points, 0)}
+                tone="good"
+              />
+            </div>
+          )}
 
           <div className="mt-6 grid gap-6 sm:grid-cols-2">
             <form action={addPointsForOrder} className="flex flex-col gap-3">

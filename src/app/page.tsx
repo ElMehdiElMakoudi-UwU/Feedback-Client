@@ -10,7 +10,25 @@ export default function Home() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col items-center gap-8 px-6 py-8 text-center">
-      <div className="flex w-full justify-end">
+      <div className="flex w-full items-center justify-center gap-3">
+        <Link
+          href="/admin"
+          aria-label={pick(lang, "دخول الإدارة", "Accès admin")}
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--sindibad-line)] text-[var(--sindibad-ink)] transition hover:border-[var(--sindibad-maroon)] hover:text-[var(--sindibad-maroon)]"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-4 w-4"
+          >
+            <rect x="4" y="10" width="16" height="10" rx="2" />
+            <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+          </svg>
+        </Link>
         <LanguageToggle />
       </div>
 

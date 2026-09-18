@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useLanguage, pick } from "@/lib/language-context";
+import { KpiCard } from "@/app/admin/kpi-card";
 
 type Kpis = {
   revenueTotal: number;
@@ -24,29 +25,6 @@ type TopItem = {
   quantity: number;
   revenue: number;
 };
-
-function KpiCard({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: string | number;
-  accent?: boolean;
-}) {
-  return (
-    <div className="rounded-md border border-neutral-200 bg-neutral-50 p-4">
-      <p
-        className={`text-2xl font-semibold tracking-tight ${
-          accent ? "text-[var(--sindibad-maroon)]" : "text-neutral-900"
-        }`}
-      >
-        {value}
-      </p>
-      <p className="mt-1 text-xs text-neutral-500">{label}</p>
-    </div>
-  );
-}
 
 function dayLabel(iso: string, lang: "ar" | "fr") {
   const d = new Date(iso + "T00:00:00");

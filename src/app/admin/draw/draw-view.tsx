@@ -2,6 +2,8 @@
 
 import { useLanguage, pick } from "@/lib/language-context";
 import { pickWeeklyWinner, clearWeeklyWinner } from "@/app/actions/draw";
+import { KpiCard } from "@/app/admin/kpi-card";
+import { IconUsers, IconGift, IconStar } from "@/app/admin/stock/icons";
 
 type WinnerFeedback = {
   tableNumber: string;
@@ -36,10 +38,33 @@ export function AdminDrawView({
       <h1 className="mb-1 text-2xl font-semibold tracking-tight">
         {pick(lang, "السحب الأسبوعي", "Tirage hebdomadaire")}
       </h1>
-      <p className="mb-8 text-sm text-neutral-500">
+      <p className="mb-6 text-sm text-neutral-500">
         {pick(lang, "الأسبوع الحالي:", "Semaine en cours :")}{" "}
         <span className="font-medium">{weekKey}</span>
       </p>
+
+      <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <KpiCard
+          icon={IconUsers}
+          label={pick(lang, "مشاركون مؤهلون", "Participants éligibles")}
+          value={uniquePhones}
+        />
+        <KpiCard
+          icon={IconGift}
+          label={pick(lang, "حالة السحب", "Statut du tirage")}
+          value={
+            currentWinner
+              ? pick(lang, "تم الاختيار", "Effectué")
+              : pick(lang, "بانتظار السحب", "En attente")
+          }
+          tone={currentWinner ? "good" : "warn"}
+        />
+        <KpiCard
+          icon={IconStar}
+          label={pick(lang, "الفائزون السابقون", "Gagnants précédents")}
+          value={pastWinners.length}
+        />
+      </div>
 
       <div className="rounded-lg border border-neutral-200 p-6">
         {currentWinner ? (
@@ -101,7 +126,7 @@ export function AdminDrawView({
               <button
                 type="submit"
                 disabled={uniquePhones === 0}
-                className="rounded-md bg-neutral-900 px-5 py-3 text-sm font-medium text-white hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
+                className="w-full rounded-md bg-neutral-900 px-5 py-3.5 text-sm font-medium text-white hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
               >
                 {pick(
                   lang,

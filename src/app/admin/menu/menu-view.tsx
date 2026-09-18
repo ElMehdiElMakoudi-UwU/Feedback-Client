@@ -11,6 +11,8 @@ import {
   toggleItemAvailability,
   updateItemPhoto,
 } from "@/app/actions/menu";
+import { KpiCard } from "@/app/admin/kpi-card";
+import { IconClipboard, IconGrid, IconCheckCircle, IconAlertTriangle } from "@/app/admin/stock/icons";
 
 type MenuItem = {
   id: string;
@@ -44,11 +46,35 @@ type MenuSection = {
 export function AdminMenuView({ sections }: { sections: MenuSection[] }) {
   const { lang } = useLanguage();
 
+  const categories = sections.flatMap((s) => s.categories);
+  const items = categories.flatMap((c) => c.items);
+  const unavailableCount = items.filter((i) => !i.available).length;
+
   return (
     <main className="mx-auto max-w-4xl px-6 py-10">
-      <h1 className="mb-8 text-2xl font-semibold tracking-tight">
+      <h1 className="mb-6 text-2xl font-semibold tracking-tight">
         {pick(lang, "القائمة", "Menu")}
       </h1>
+
+      <div className="mb-10 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <KpiCard icon={IconGrid} label={pick(lang, "أقسام", "Sections")} value={sections.length} />
+        <KpiCard
+          icon={IconClipboard}
+          label={pick(lang, "فئات", "Catégories")}
+          value={categories.length}
+        />
+        <KpiCard
+          icon={IconCheckCircle}
+          label={pick(lang, "إجمالي الأطباق", "Plats au total")}
+          value={items.length}
+        />
+        <KpiCard
+          icon={IconAlertTriangle}
+          label={pick(lang, "غير متوفر", "Indisponibles")}
+          value={unavailableCount}
+          tone={unavailableCount > 0 ? "warn" : "good"}
+        />
+      </div>
 
       <div className="flex flex-col gap-12">
         {sections.map((section) => (

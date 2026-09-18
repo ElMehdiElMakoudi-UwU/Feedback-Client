@@ -8,12 +8,17 @@ datasource db {
 }
 
 model AdminUser {
-  id           String              @id @default(cuid())
-  email        String              @unique
-  passwordHash String
-  role         String              @default("ADMIN") // "ADMIN" | "CASHIER"
-  createdAt    DateTime            @default(now())
-  transactions PointsTransaction[]
+  id            String              @id @default(cuid())
+  email         String              @unique
+  passwordHash  String
+  role          String              @default("ADMIN") // "ADMIN" | "CASHIER" | "WORKER"
+  workstationId String?
+  workstation   Workstation?        @relation(fields: [workstationId], references: [id], onDelete: SetNull)
+  createdAt     DateTime            @default(now())
+  transactions  PointsTransaction[]
+  restocks      StockRestock[]
+  dailySales    DailySales[]
+  stockCounts   StockCount[]
 }
 
 model MenuSection {
@@ -39,37 +44,55 @@ model MenuCategory {
 }
 
 model MenuItem {
-  id             String       @id @default(cuid())
-  categoryId     String
-  category       MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  nameAr         String
-  nameFr         String
-  descriptionAr  String?
-  descriptionFr  String?
-  noteAr         String?
-  noteFr         String?
-  price          Float?
-  priceLarge     Float?
-  comingSoon     Boolean      @default(false)
-  photoUrl       String?
-  available      Boolean      @default(true)
-  sortOrder      Int          @default(0)
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  orderItems     OrderItem[]
+  id              String           @id @default(cuid())
+  categoryId      String
+  category        MenuCategory     @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  nameAr          String
+  nameFr          String
+  descriptionAr   String?
+  descriptionFr   String?
+  noteAr          String?
+  noteFr          String?
+  price           Float?
+  priceLarge      Float?
+  comingSoon      Boolean          @default(false)
+  photoUrl        String?
+  available       Boolean          @default(true)
+  sortOrder       Int              @default(0)
+  workstationId   String?
+  workstation     Workstation?     @relation(fields: [workstationId], references: [id], onDelete: SetNull)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  orderItems      OrderItem[]
+  itemRatings     ItemRating[]
+  recipeItems     RecipeItem[]
+  dailySalesItems DailySalesItem[]
 }
 
 model Feedback {
-  id            String      @id @default(cuid())
+  id            String       @id @default(cuid())
   tableNumber   String
   foodRating    Int
   serviceRating Int
   comment       String?
-  enteredDraw   Boolean     @default(false)
+  enteredDraw   Boolean      @default(false)
   phone         String?
   weekKey       String?
-  createdAt     DateTime    @default(now())
+  createdAt     DateTime     @default(now())
   drawWinner    DrawWinner?
+  itemRatings   ItemRating[]
+}
+
+model ItemRating {
+  id         String   @id @default(cuid())
+  feedbackId String
+  feedback   Feedback @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+  menuItemId String
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  rating     Int
+  createdAt  DateTime @default(now())
+
+  @@unique([feedbackId, menuItemId])
 }
 
 model DrawWinner {
@@ -132,4 +155,127 @@ model OrderItem {
   unitPrice  Float
   quantity   Int       @default(1)
   createdAt  DateTime  @default(now())
+}
+
+model Kitchen {
+  id           String        @id @default(cuid())
+  name         String
+  sortOrder    Int           @default(0)
+  workstations Workstation[]
+  createdAt    DateTime      @default(now())
+}
+
+model Workstation {
+  id          String                  @id @default(cuid())
+  kitchenId   String
+  kitchen     Kitchen                 @relation(fields: [kitchenId], references: [id], onDelete: Cascade)
+  name        String
+  sortOrder   Int                     @default(0)
+  ingredients WorkstationIngredient[]
+  workers     AdminUser[]
+  menuItems   MenuItem[]
+  stockCounts StockCount[]
+  createdAt   DateTime                @default(now())
+}
+
+model Ingredient {
+  id          String                  @id @default(cuid())
+  name        String
+  unit        String // e.g. "Kg", "Packet x18", "Unit"
+  active      Boolean                 @default(true)
+  createdAt   DateTime                @default(now())
+  stations    WorkstationIngredient[]
+  recipeItems RecipeItem[]
+}
+
+// The manager-defined counter form: which ingredients a workstation stocks,
+// plus the live running quantity carried forward day to day.
+model WorkstationIngredient {
+  id              String            @id @default(cuid())
+  workstationId   String
+  workstation     Workstation       @relation(fields: [workstationId], references: [id], onDelete: Cascade)
+  ingredientId    String
+  ingredient      Ingredient        @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+  currentQuantity Float             @default(0)
+  sortOrder       Int               @default(0)
+  restocks        StockRestock[]
+  countEntries    StockCountEntry[]
+
+  @@unique([workstationId, ingredientId])
+}
+
+// Mid-shift resupply logged during the day; applied immediately to currentQuantity.
+model StockRestock {
+  id                      String                @id @default(cuid())
+  workstationIngredientId String
+  workstationIngredient   WorkstationIngredient @relation(fields: [workstationIngredientId], references: [id], onDelete: Cascade)
+  quantity                Float
+  note                    String?
+  createdById             String
+  createdBy               AdminUser             @relation(fields: [createdById], references: [id])
+  createdAt               DateTime              @default(now())
+}
+
+// Fiche technique: ingredients consumed per unit sold of a menu item.
+model RecipeItem {
+  id           String     @id @default(cuid())
+  menuItemId   String
+  menuItem     MenuItem   @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  size         String? // null | "REGULAR" | "LARGE" — mirrors OrderItem.size
+  ingredientId String
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+  quantity     Float // amount consumed per one unit sold
+
+  @@unique([menuItemId, size, ingredientId])
+}
+
+// Manager's end-of-day entry of how many of each item sold.
+model DailySales {
+  id          String           @id @default(cuid())
+  date        DateTime         @unique // normalized to midnight
+  createdById String
+  createdBy   AdminUser        @relation(fields: [createdById], references: [id])
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  items       DailySalesItem[]
+}
+
+model DailySalesItem {
+  id           String     @id @default(cuid())
+  dailySalesId String
+  dailySales   DailySales @relation(fields: [dailySalesId], references: [id], onDelete: Cascade)
+  menuItemId   String
+  menuItem     MenuItem   @relation(fields: [menuItemId], references: [id])
+  size         String?
+  quantitySold Int
+
+  @@unique([dailySalesId, menuItemId, size])
+}
+
+// Worker's end-of-day physical count submission for one workstation.
+model StockCount {
+  id            String            @id @default(cuid())
+  workstationId String
+  workstation   Workstation       @relation(fields: [workstationId], references: [id], onDelete: Cascade)
+  date          DateTime // normalized to midnight
+  workerId      String
+  worker        AdminUser         @relation(fields: [workerId], references: [id])
+  finalizedAt   DateTime?
+  createdAt     DateTime          @default(now())
+  entries       StockCountEntry[]
+
+  @@unique([workstationId, date])
+}
+
+model StockCountEntry {
+  id                      String                @id @default(cuid())
+  stockCountId            String
+  stockCount              StockCount            @relation(fields: [stockCountId], references: [id], onDelete: Cascade)
+  workstationIngredientId String
+  workstationIngredient   WorkstationIngredient @relation(fields: [workstationIngredientId], references: [id])
+  actualQuantity          Float
+  expectedQuantity        Float?
+  variance                Float?
+
+  @@unique([stockCountId, workstationIngredientId])
 }

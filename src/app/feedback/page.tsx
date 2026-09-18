@@ -1,17 +1,30 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useLanguage, pick } from "@/lib/language-context";
 import { LanguageToggle } from "@/components/language-toggle";
-import { FeedbackForm } from "./feedback-form";
+import { FeedbackForm, type RateableItem } from "./feedback-form";
+import { getRecentOrderItems } from "@/app/actions/feedback";
 
 function FeedbackPageContent() {
   const { lang } = useLanguage();
   const searchParams = useSearchParams();
   const initialTable = searchParams.get("table") ?? undefined;
+  const [rateableItems, setRateableItems] = useState<RateableItem[]>([]);
+
+  useEffect(() => {
+    if (!initialTable) return;
+    let cancelled = false;
+    getRecentOrderItems(initialTable).then((items) => {
+      if (!cancelled) setRateableItems(items);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [initialTable]);
 
   return (
     <main className="mx-auto min-h-screen max-w-md px-6 py-10">
@@ -45,7 +58,11 @@ function FeedbackPageContent() {
         </p>
       </div>
 
-      <FeedbackForm lang={lang} initialTable={initialTable} />
+      <FeedbackForm
+        lang={lang}
+        initialTable={initialTable}
+        rateableItems={rateableItems}
+      />
     </main>
   );
 }
