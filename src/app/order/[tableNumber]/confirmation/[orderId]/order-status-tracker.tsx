@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLanguage, pick } from "@/lib/language-context";
 import { LanguageToggle } from "@/components/language-toggle";
 import {
@@ -12,6 +12,7 @@ import {
   type OrderStatus,
 } from "@/lib/order-status";
 import { isTakeawayTable, isDeliveryTable } from "@/lib/order-mode";
+import { subscribeToOrderPush } from "@/app/actions/orders";
 
 type OrderLine = {
   id: string;
@@ -21,6 +22,41 @@ type OrderLine = {
   unitPrice: number;
   quantity: number;
 };
+
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = window.atob(base64);
+  return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
+}
+
+function playNotificationSound() {
+  try {
+    const AudioContextClass =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const ctx = new AudioContextClass();
+    const now = ctx.currentTime;
+
+    [0, 0.18].forEach((offset) => {
+      const oscillator = ctx.createOscillator();
+      const gain = ctx.createGain();
+      oscillator.type = "sine";
+      oscillator.frequency.value = 880;
+      gain.gain.setValueAtTime(0.0001, now + offset);
+      gain.gain.exponentialRampToValueAtTime(0.2, now + offset + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + 0.16);
+      oscillator.connect(gain);
+      gain.connect(ctx.destination);
+      oscillator.start(now + offset);
+      oscillator.stop(now + offset + 0.18);
+    });
+
+    setTimeout(() => ctx.close(), 500);
+  } catch {
+    // Ignore environments without Web Audio support.
+  }
+}
 
 export function OrderStatusTracker({
   tableNumber,
@@ -45,6 +81,68 @@ export function OrderStatusTracker({
   const isTakeaway = isTakeawayTable(tableNumber);
   const isDelivery = isDeliveryTable(tableNumber);
   const [status, setStatus] = useState<OrderStatus>(initialStatus);
+  const [showToast, setShowToast] = useState(false);
+  const [pushState, setPushState] = useState<
+    "unsupported" | "unsubscribed" | "subscribing" | "subscribed" | "denied"
+  >(() => {
+    if (
+      typeof window === "undefined" ||
+      !("serviceWorker" in navigator) ||
+      !("PushManager" in window)
+    ) {
+      return "unsupported";
+    }
+    if (Notification.permission === "denied") return "denied";
+    return "unsubscribed";
+  });
+  const previousStatus = useRef<OrderStatus>(initialStatus);
+
+  useEffect(() => {
+    if (pushState === "unsupported" || pushState === "denied") return;
+
+    navigator.serviceWorker
+      .register("/sw.js")
+      .then((registration) => registration.pushManager.getSubscription())
+      .then((subscription) => {
+        if (subscription) setPushState("subscribed");
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function enablePushNotifications() {
+    const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+    if (!vapidPublicKey) return;
+
+    setPushState("subscribing");
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        setPushState(permission === "denied" ? "denied" : "unsubscribed");
+        return;
+      }
+
+      const registration = await navigator.serviceWorker.register("/sw.js");
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+      });
+
+      const json = subscription.toJSON();
+      await subscribeToOrderPush({
+        orderId,
+        endpoint: subscription.endpoint,
+        keys: {
+          p256dh: json.keys?.p256dh ?? "",
+          auth: json.keys?.auth ?? "",
+        },
+      });
+
+      setPushState("subscribed");
+    } catch {
+      setPushState("unsubscribed");
+    }
+  }
 
   useEffect(() => {
     const source = new EventSource(`/api/orders/stream?orderId=${orderId}`);
@@ -55,6 +153,27 @@ export function OrderStatusTracker({
     return () => source.close();
   }, [orderId]);
 
+  useEffect(() => {
+    if (status === previousStatus.current) return;
+    previousStatus.current = status;
+
+    playNotificationSound();
+
+    setShowToast(true);
+    const timeout = setTimeout(() => setShowToast(false), 4000);
+
+    if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+      const newLabel = ORDER_STATUS_LABEL[status];
+      new Notification(pick(lang, "تم تحديث حالة طلبك", "Statut de commande mis à jour"), {
+        body: pick(lang, newLabel.ar, newLabel.fr),
+        icon: "/brand/icon-mark.png",
+      });
+    }
+
+    return () => clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
+
   const label = ORDER_STATUS_LABEL[status];
   const isCancelled = status === "CANCELLED";
   const isCompleted = status === "COMPLETED";
@@ -62,6 +181,20 @@ export function OrderStatusTracker({
 
   return (
     <main className="mx-auto min-h-screen max-w-md px-6 py-10">
+      {showToast && (
+        <div
+          role="status"
+          className="fixed left-1/2 top-4 z-50 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 rounded-md border border-[var(--sindibad-line)] bg-[var(--sindibad-paper)] px-4 py-3 text-center shadow-lg"
+        >
+          <p className="text-sm text-[var(--sindibad-muted)]">
+            {pick(lang, "تم تحديث حالة طلبك", "Statut de commande mis à jour")}
+          </p>
+          <p className="font-display text-base text-[var(--sindibad-maroon)]">
+            {label.emoji} {pick(lang, label.ar, label.fr)}
+          </p>
+        </div>
+      )}
+
       <div className="mb-8 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2">
           <Image
@@ -112,6 +245,30 @@ export function OrderStatusTracker({
           </div>
         )}
       </div>
+
+      {(pushState === "unsubscribed" || pushState === "subscribing") && (
+        <button
+          type="button"
+          onClick={enablePushNotifications}
+          disabled={pushState === "subscribing"}
+          className="font-display mb-6 block w-full rounded-md border border-dashed border-[var(--sindibad-line)] px-6 py-4 text-center text-sm tracking-wide text-[var(--sindibad-muted)] transition hover:border-[var(--sindibad-maroon)] hover:text-[var(--sindibad-maroon)] disabled:opacity-60"
+        >
+          🔔{" "}
+          {pushState === "subscribing"
+            ? pick(lang, "جارٍ التفعيل…", "Activation…")
+            : pick(
+                lang,
+                "فعّل الإشعارات لمتابعة طلبك حتى وأنت خارج الصفحة",
+                "Activer les notifications pour suivre ma commande même hors de la page"
+              )}
+        </button>
+      )}
+
+      {pushState === "subscribed" && (
+        <p className="mb-6 text-center text-xs text-[var(--sindibad-muted)]">
+          🔔 {pick(lang, "الإشعارات مفعّلة", "Notifications activées")}
+        </p>
+      )}
 
       <div className="rounded-md border border-[var(--sindibad-line)] p-5">
         <div className="flex flex-col divide-y divide-[var(--sindibad-line)]">

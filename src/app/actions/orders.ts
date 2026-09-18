@@ -6,9 +6,11 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireStaff } from "@/lib/require-admin";
 import { emitOrderEvent } from "@/lib/order-events";
+import { sendOrderPushNotification } from "@/lib/push";
 import {
   nextOrderStatus,
   canAddItemsToOrder,
+  ORDER_STATUS_LABEL,
   type OrderStatus,
 } from "@/lib/order-status";
 
@@ -289,8 +291,43 @@ async function setOrderStatus(orderId: string, status: OrderStatus) {
     kind: "status_changed",
   });
 
+  const label = ORDER_STATUS_LABEL[order.status as OrderStatus];
+  await sendOrderPushNotification(order.id, {
+    title: "Sindibad",
+    body: `${label.emoji} ${label.fr} / ${label.ar}`,
+  });
+
   revalidatePath("/admin/orders");
   revalidatePath("/admin/loyalty");
+}
+
+const pushSubscriptionSchema = z.object({
+  orderId: z.string().min(1),
+  endpoint: z.string().url(),
+  keys: z.object({
+    p256dh: z.string().min(1),
+    auth: z.string().min(1),
+  }),
+});
+
+export async function subscribeToOrderPush(
+  input: z.infer<typeof pushSubscriptionSchema>
+) {
+  const parsed = pushSubscriptionSchema.safeParse(input);
+  if (!parsed.success) return { status: "error" as const };
+
+  const { orderId, endpoint, keys } = parsed.data;
+
+  const order = await prisma.order.findUnique({ where: { id: orderId } });
+  if (!order) return { status: "error" as const };
+
+  await prisma.pushSubscription.upsert({
+    where: { endpoint },
+    update: { orderId, p256dh: keys.p256dh, auth: keys.auth },
+    create: { orderId, endpoint, p256dh: keys.p256dh, auth: keys.auth },
+  });
+
+  return { status: "ok" as const };
 }
 
 export async function advanceOrderStatus(orderId: string, current: OrderStatus) {
