@@ -32,28 +32,77 @@ export default function Home() {
         <div className="flex w-full flex-col gap-3">
           <Link
             href="/order"
-            className="font-display rounded-md border border-[var(--sindibad-ink)] bg-[var(--sindibad-ink)] px-6 py-4 text-lg tracking-wide text-[var(--sindibad-cream)] transition hover:bg-[var(--sindibad-maroon)] hover:border-[var(--sindibad-maroon)]"
+            className="font-display flex items-center justify-center gap-3 rounded-md border border-[var(--sindibad-ink)] bg-[var(--sindibad-ink)] px-6 py-4 text-lg tracking-wide text-[var(--sindibad-cream)] transition hover:bg-[var(--sindibad-maroon)] hover:border-[var(--sindibad-maroon)]"
           >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.75"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-5 w-5 shrink-0"
+            >
+              <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
+              <path d="M3 6h18" />
+              <path d="M16 10a4 4 0 0 1-8 0" />
+            </svg>
             {pick(lang, "اطلبوا الآن", "Commander maintenant")}
           </Link>
           <a
             href="/menu/sindibad-menu.pdf"
             target="_blank"
             rel="noopener noreferrer"
-            className="font-display rounded-md border border-[var(--sindibad-ink)] px-6 py-4 text-lg tracking-wide text-[var(--sindibad-ink)] transition hover:border-[var(--sindibad-maroon)] hover:text-[var(--sindibad-maroon)]"
+            className="font-display flex items-center justify-center gap-3 rounded-md border border-[var(--sindibad-ink)] px-6 py-4 text-lg tracking-wide text-[var(--sindibad-ink)] transition hover:border-[var(--sindibad-maroon)] hover:text-[var(--sindibad-maroon)]"
           >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.75"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-5 w-5 shrink-0"
+            >
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+              <path d="M14 2v6h6" />
+              <path d="M9 13h6" />
+              <path d="M9 17h6" />
+            </svg>
             {pick(lang, "القائمة PDF", "Menu en PDF")}
           </a>
           <Link
             href="/feedback"
-            className="font-display rounded-md border border-[var(--sindibad-ink)] px-6 py-4 text-lg tracking-wide text-[var(--sindibad-ink)] transition hover:border-[var(--sindibad-maroon)] hover:text-[var(--sindibad-maroon)]"
+            className="font-display flex items-center justify-center gap-3 rounded-md border border-[var(--sindibad-ink)] px-6 py-4 text-lg tracking-wide text-[var(--sindibad-ink)] transition hover:border-[var(--sindibad-maroon)] hover:text-[var(--sindibad-maroon)]"
           >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.75"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-5 w-5 shrink-0"
+            >
+              <path d="m12 2 2.9 6.3 6.9.6-5.2 4.6 1.6 6.8L12 16.9 5.8 20.3l1.6-6.8-5.2-4.6 6.9-.6Z" />
+            </svg>
             {pick(lang, "شاركونا رأيكم", "Laisser un avis")}
           </Link>
           <Link
             href="/loyalty"
-            className="font-display rounded-md border border-[var(--sindibad-ink)] px-6 py-4 text-lg tracking-wide text-[var(--sindibad-ink)] transition hover:border-[var(--sindibad-maroon)] hover:text-[var(--sindibad-maroon)]"
+            className="font-display flex items-center justify-center gap-3 rounded-md border border-[var(--sindibad-ink)] px-6 py-4 text-lg tracking-wide text-[var(--sindibad-ink)] transition hover:border-[var(--sindibad-maroon)] hover:text-[var(--sindibad-maroon)]"
           >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.75"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-5 w-5 shrink-0"
+            >
+              <path d="M12 21s-7.5-4.6-10-9.1C.5 8.5 2.2 5 5.6 5c2 0 3.4 1 4.4 2.4C11 6 12.4 5 14.4 5c3.4 0 5.1 3.5 3.6 6.9C19.5 16.4 12 21 12 21Z" />
+            </svg>
             {pick(lang, "نقاط الولاء", "Mes points fidélité")}
           </Link>
         </div>

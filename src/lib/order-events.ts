@@ -19,8 +19,14 @@ const EVENT_NAME = "order";
 export const orderEvents =
   globalForOrderEvents.orderEvents ?? new EventEmitter().setMaxListeners(0);
 
-if (process.env.NODE_ENV !== "production")
-  globalForOrderEvents.orderEvents = orderEvents;
+// Always pin this to globalThis, not just outside production: Next's
+// standalone output compiles each route/Server Action into its own bundle,
+// so without a shared globalThis instance, `emitOrderEvent` (called from the
+// placeOrder Server Action's bundle) and `subscribeToOrderEvents` (called
+// from the /api/orders/stream route's bundle) can end up on two separate
+// EventEmitter instances in the same process and never see each other's
+// events — orders persist fine, but the SSE stream never fires.
+globalForOrderEvents.orderEvents = orderEvents;
 
 export function emitOrderEvent(event: OrderEvent) {
   orderEvents.emit(EVENT_NAME, event);

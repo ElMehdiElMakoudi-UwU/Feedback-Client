@@ -84,34 +84,77 @@ export default function OrderEntryPage() {
         <button
           type="button"
           onClick={() => setMode("table")}
-          className={`font-display rounded-md border px-2 py-3 text-xs tracking-wide transition sm:text-sm ${
+          className={`font-display flex flex-col items-center gap-1.5 rounded-md border px-2 py-3 text-xs tracking-wide transition sm:text-sm ${
             mode === "table"
               ? "border-[var(--sindibad-maroon)] bg-[var(--sindibad-maroon)] text-[var(--sindibad-cream)]"
               : "border-[var(--sindibad-line)] text-[var(--sindibad-ink)]"
           }`}
         >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-5 w-5 shrink-0"
+          >
+            <path d="M7 2v8" />
+            <path d="M5 2v4a2 2 0 0 0 4 0V2" />
+            <path d="M7 10v12" />
+            <path d="M17 2c-1.7 0-3 2.2-3 5s1.3 5 3 5" />
+            <path d="M17 2v20" />
+          </svg>
           {pick(lang, "أنا في المطعم", "Sur place")}
         </button>
         <button
           type="button"
           onClick={() => setMode("takeaway")}
-          className={`font-display rounded-md border px-2 py-3 text-xs tracking-wide transition sm:text-sm ${
+          className={`font-display flex flex-col items-center gap-1.5 rounded-md border px-2 py-3 text-xs tracking-wide transition sm:text-sm ${
             mode === "takeaway"
               ? "border-[var(--sindibad-maroon)] bg-[var(--sindibad-maroon)] text-[var(--sindibad-cream)]"
               : "border-[var(--sindibad-line)] text-[var(--sindibad-ink)]"
           }`}
         >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-5 w-5 shrink-0"
+          >
+            <path d="M6 8h12l1 12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2Z" />
+            <path d="M9 8V6a3 3 0 0 1 6 0v2" />
+          </svg>
           {pick(lang, "طلب خارجي", "À emporter")}
         </button>
         <button
           type="button"
           onClick={() => setMode("delivery")}
-          className={`font-display rounded-md border px-2 py-3 text-xs tracking-wide transition sm:text-sm ${
+          className={`font-display flex flex-col items-center gap-1.5 rounded-md border px-2 py-3 text-xs tracking-wide transition sm:text-sm ${
             mode === "delivery"
               ? "border-[var(--sindibad-maroon)] bg-[var(--sindibad-maroon)] text-[var(--sindibad-cream)]"
               : "border-[var(--sindibad-line)] text-[var(--sindibad-ink)]"
           }`}
         >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-5 w-5 shrink-0"
+          >
+            <circle cx="6" cy="19" r="2" />
+            <circle cx="17" cy="19" r="2" />
+            <path d="M6 19h9V9H9" />
+            <path d="M9 9 6 6H3" />
+            <path d="M14 19h3l2-5h-5.5" />
+            <path d="M12 6h4l2 4" />
+          </svg>
           {pick(lang, "توصيل", "Livraison")}
         </button>
       </div>
