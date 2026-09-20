@@ -11,7 +11,7 @@ if (publicKey && privateKey && subject) {
 
 export async function sendOrderPushNotification(
   orderId: string,
-  payload: { title: string; body: string }
+  payload: { title: string; body: string; url?: string }
 ) {
   if (!publicKey || !privateKey || !subject) return;
 

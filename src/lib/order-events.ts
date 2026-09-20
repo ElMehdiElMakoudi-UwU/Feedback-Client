@@ -1,7 +1,11 @@
 import { EventEmitter } from "events";
 import type { OrderStatus } from "@/lib/order-status";
 
-export type OrderEventKind = "created" | "items_added" | "status_changed";
+export type OrderEventKind =
+  | "created"
+  | "items_added"
+  | "items_confirmed"
+  | "status_changed";
 
 export type OrderEvent = {
   orderId: string;

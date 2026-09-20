@@ -278,6 +278,24 @@ async function main() {
       },
     });
 
+    // Beginning-of-shift count, matching the opening stock set above.
+    await prisma.stockCount.create({
+      data: {
+        workstationId: workstation.id,
+        date: yesterday,
+        period: "OPENING",
+        workerId: worker.id,
+        finalizedAt: new Date(yesterday.getTime() + 8 * 3600 * 1000),
+        createdAt: new Date(yesterday.getTime() + 8 * 3600 * 1000),
+        entries: {
+          create: ws.openingStock.map((stock) => ({
+            workstationIngredientId: wsIngredientByIngredientName.get(stock.ingredient)!.id,
+            actualQuantity: stock.quantity,
+          })),
+        },
+      },
+    });
+
     for (const recipe of ws.recipes) {
       const menuItem = await prisma.menuItem.findFirst({
         where: { nameFr: recipe.menuItemNameFr },
@@ -335,6 +353,7 @@ async function main() {
         data: {
           workstationId: workstation.id,
           date: yesterday,
+          period: "CLOSING",
           workerId: worker.id,
           createdAt: new Date(yesterday.getTime() + 22 * 3600 * 1000),
           entries: { create: entries },

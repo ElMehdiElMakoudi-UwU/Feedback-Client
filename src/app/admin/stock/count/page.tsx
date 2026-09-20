@@ -20,7 +20,7 @@ export default async function StockCountPage() {
 
   const today = normalizeToDay(new Date());
 
-  const [workstation, existingCount] = await Promise.all([
+  const [workstation, openingCount, closingCount] = await Promise.all([
     prisma.workstation.findUnique({
       where: { id: worker.workstationId },
       include: {
@@ -30,7 +30,21 @@ export default async function StockCountPage() {
     }),
     prisma.stockCount.findUnique({
       where: {
-        workstationId_date: { workstationId: worker.workstationId, date: today },
+        workstationId_date_period: {
+          workstationId: worker.workstationId,
+          date: today,
+          period: "OPENING",
+        },
+      },
+      include: { entries: true },
+    }),
+    prisma.stockCount.findUnique({
+      where: {
+        workstationId_date_period: {
+          workstationId: worker.workstationId,
+          date: today,
+          period: "CLOSING",
+        },
       },
       include: { entries: true },
     }),
@@ -47,8 +61,10 @@ export default async function StockCountPage() {
   return (
     <StockCountView
       workstation={workstation}
-      alreadySubmitted={!!existingCount}
-      existingEntries={existingCount?.entries ?? []}
+      openingSubmitted={!!openingCount}
+      closingSubmitted={!!closingCount}
+      openingEntries={openingCount?.entries ?? []}
+      closingEntries={closingCount?.entries ?? []}
     />
   );
 }

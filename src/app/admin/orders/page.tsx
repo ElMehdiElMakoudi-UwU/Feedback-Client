@@ -63,6 +63,7 @@ export default async function AdminOrdersPage() {
           size: item.size,
           unitPrice: item.unitPrice,
           quantity: item.quantity,
+          confirmed: item.confirmed,
         })),
       }))}
     />

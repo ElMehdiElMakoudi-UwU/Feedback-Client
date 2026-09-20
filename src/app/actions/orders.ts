@@ -16,6 +16,19 @@ import {
 
 const phoneRegex = /^[0-9+\s-]{8,20}$/;
 
+// Give guests time to actually eat before asking them to rate the meal.
+const FEEDBACK_REMINDER_DELAY_MS = 12 * 60 * 1000;
+
+function scheduleFeedbackReminder(orderId: string, tableNumber: string) {
+  setTimeout(() => {
+    sendOrderPushNotification(orderId, {
+      title: "Sindibad",
+      body: "⭐ Comment était votre repas ? Donnez votre avis / كيف كانت وجبتكم؟ شاركونا رأيكم",
+      url: `/feedback?table=${encodeURIComponent(tableNumber)}`,
+    }).catch(() => {});
+  }, FEEDBACK_REMINDER_DELAY_MS);
+}
+
 const placeOrderSchema = z.object({
   tableNumber: z.string().trim().min(1, "Table number is required").max(20),
   guestName: z.string().trim().max(60).optional().or(z.literal("")),
@@ -219,9 +232,18 @@ export async function addItemsToOrder(
     0
   );
 
+  // Items added after a cashier already confirmed the order need a separate
+  // re-confirmation, without un-confirming the order itself in front of the
+  // customer (that would revert their "confirmed" status screen/notification).
+  const needsConfirmation = order.status === "CONFIRMED";
+
   await prisma.$transaction(async (tx) => {
     await tx.orderItem.createMany({
-      data: lineItems.map((line) => ({ ...line, orderId })),
+      data: lineItems.map((line) => ({
+        ...line,
+        orderId,
+        confirmed: !needsConfirmation,
+      })),
     });
     await tx.order.update({
       where: { id: orderId },
@@ -297,6 +319,10 @@ async function setOrderStatus(orderId: string, status: OrderStatus) {
     body: `${label.emoji} ${label.fr} / ${label.ar}`,
   });
 
+  if (status === "COMPLETED") {
+    scheduleFeedbackReminder(order.id, order.tableNumber);
+  }
+
   revalidatePath("/admin/orders");
   revalidatePath("/admin/loyalty");
 }
@@ -338,4 +364,22 @@ export async function advanceOrderStatus(orderId: string, current: OrderStatus) 
 
 export async function cancelOrder(orderId: string) {
   await setOrderStatus(orderId, "CANCELLED");
+}
+
+export async function confirmNewItems(orderId: string) {
+  await requireStaff();
+
+  const order = await prisma.order.update({
+    where: { id: orderId },
+    data: { items: { updateMany: { where: { confirmed: false }, data: { confirmed: true } } } },
+  });
+
+  emitOrderEvent({
+    orderId: order.id,
+    tableNumber: order.tableNumber,
+    status: order.status as OrderStatus,
+    kind: "items_confirmed",
+  });
+
+  revalidatePath("/admin/orders");
 }

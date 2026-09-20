@@ -276,24 +276,9 @@ export async function logRestock(formData: FormData) {
   revalidateStock();
 }
 
-// ---- End-of-day stock count (worker) ----
+// ---- Start/end-of-shift stock counts (worker) ----
 
-export async function submitStockCount(formData: FormData) {
-  const worker = await requireWorker();
-  if (!worker.workstationId) return;
-
-  const today = normalizeToDay(new Date());
-  const existing = await prisma.stockCount.findUnique({
-    where: {
-      workstationId_date: { workstationId: worker.workstationId, date: today },
-    },
-  });
-  if (existing) return;
-
-  const wsIngredients = await prisma.workstationIngredient.findMany({
-    where: { workstationId: worker.workstationId },
-  });
-
+function readCountEntries(formData: FormData, wsIngredients: { id: string }[]) {
   const entries: { workstationIngredientId: string; actualQuantity: number }[] = [];
   for (const wsIngredient of wsIngredients) {
     const raw = formData.get(`qty_${wsIngredient.id}`);
@@ -302,12 +287,100 @@ export async function submitStockCount(formData: FormData) {
     if (!Number.isFinite(quantity) || quantity < 0) continue;
     entries.push({ workstationIngredientId: wsIngredient.id, actualQuantity: quantity });
   }
+  return entries;
+}
+
+// Beginning-of-shift count: the worker confirms (or corrects) what's
+// physically on the counter. This becomes the day's authoritative starting
+// baseline, overriding whatever was carried forward from last night.
+export async function submitOpeningCount(formData: FormData) {
+  const worker = await requireWorker();
+  if (!worker.workstationId) return;
+
+  const today = normalizeToDay(new Date());
+  const existing = await prisma.stockCount.findUnique({
+    where: {
+      workstationId_date_period: {
+        workstationId: worker.workstationId,
+        date: today,
+        period: "OPENING",
+      },
+    },
+  });
+  if (existing) return;
+
+  const wsIngredients = await prisma.workstationIngredient.findMany({
+    where: { workstationId: worker.workstationId },
+  });
+
+  const entries = readCountEntries(formData, wsIngredients);
+  if (entries.length === 0) return;
+
+  await prisma.$transaction([
+    prisma.stockCount.create({
+      data: {
+        workstationId: worker.workstationId,
+        date: today,
+        period: "OPENING",
+        workerId: worker.id,
+        finalizedAt: new Date(),
+        entries: { create: entries },
+      },
+    }),
+    ...entries.map((entry) =>
+      prisma.workstationIngredient.update({
+        where: { id: entry.workstationIngredientId },
+        data: { currentQuantity: entry.actualQuantity },
+      })
+    ),
+  ]);
+
+  revalidateStock();
+}
+
+// End-of-shift count: compared against expected consumption to compute the
+// day's variance. Requires the opening count to already be in, so the
+// baseline it's measured against is the shift's actual starting point.
+export async function submitClosingCount(formData: FormData) {
+  const worker = await requireWorker();
+  if (!worker.workstationId) return;
+
+  const today = normalizeToDay(new Date());
+
+  const openingCount = await prisma.stockCount.findUnique({
+    where: {
+      workstationId_date_period: {
+        workstationId: worker.workstationId,
+        date: today,
+        period: "OPENING",
+      },
+    },
+  });
+  if (!openingCount) return;
+
+  const existing = await prisma.stockCount.findUnique({
+    where: {
+      workstationId_date_period: {
+        workstationId: worker.workstationId,
+        date: today,
+        period: "CLOSING",
+      },
+    },
+  });
+  if (existing) return;
+
+  const wsIngredients = await prisma.workstationIngredient.findMany({
+    where: { workstationId: worker.workstationId },
+  });
+
+  const entries = readCountEntries(formData, wsIngredients);
   if (entries.length === 0) return;
 
   await prisma.stockCount.create({
     data: {
       workstationId: worker.workstationId,
       date: today,
+      period: "CLOSING",
       workerId: worker.id,
       entries: { create: entries },
     },

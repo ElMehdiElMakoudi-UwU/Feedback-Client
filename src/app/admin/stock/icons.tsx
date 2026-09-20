@@ -207,3 +207,28 @@ export function IconChevronRight({ className = base }: IconProps) {
     </svg>
   );
 }
+
+export function IconSunrise({ className = base }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} className={className}>
+      <path strokeLinecap="round" d="M12 3v4" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 15a4.5 4.5 0 0 0-4.5-4.5" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5A4.5 4.5 0 0 0 12 15" />
+      <path strokeLinecap="round" d="m5.5 7 2 2M18.5 7l-2 2" />
+      <path strokeLinecap="round" d="M2.5 15h19M4.5 19h15" />
+    </svg>
+  );
+}
+
+export function IconMoonStars({ className = base }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} className={className}>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M20 14.5A7.5 7.5 0 1 1 9.5 4a6 6 0 0 0 10.5 10.5Z"
+      />
+      <path strokeLinecap="round" d="M18 3v2.5M16.75 4.25h2.5" />
+    </svg>
+  );
+}

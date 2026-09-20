@@ -25,7 +25,7 @@ export async function finalizeStockCount(workstationId: string, date: Date) {
   const day = normalizeToDay(date);
 
   const stockCount = await prisma.stockCount.findUnique({
-    where: { workstationId_date: { workstationId, date: day } },
+    where: { workstationId_date_period: { workstationId, date: day, period: "CLOSING" } },
     include: { entries: true },
   });
   if (!stockCount || stockCount.finalizedAt) return;

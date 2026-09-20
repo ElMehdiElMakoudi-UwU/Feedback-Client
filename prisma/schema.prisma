@@ -178,6 +178,7 @@ model OrderItem {
   size       String? // "REGULAR" | "LARGE"
   unitPrice  Float
   quantity   Int       @default(1)
+  confirmed  Boolean   @default(true)
   createdAt  DateTime  @default(now())
 }
 
@@ -276,19 +277,21 @@ model DailySalesItem {
   @@unique([dailySalesId, menuItemId, size])
 }
 
-// Worker's end-of-day physical count submission for one workstation.
+// Worker's physical count submission for one workstation, taken either at
+// the start of the shift ("OPENING") or the end of it ("CLOSING").
 model StockCount {
   id            String            @id @default(cuid())
   workstationId String
   workstation   Workstation       @relation(fields: [workstationId], references: [id], onDelete: Cascade)
   date          DateTime // normalized to midnight
+  period        String            @default("CLOSING") // "OPENING" | "CLOSING"
   workerId      String
   worker        AdminUser         @relation(fields: [workerId], references: [id])
   finalizedAt   DateTime?
   createdAt     DateTime          @default(now())
   entries       StockCountEntry[]
 
-  @@unique([workstationId, date])
+  @@unique([workstationId, date, period])
 }
 
 model StockCountEntry {

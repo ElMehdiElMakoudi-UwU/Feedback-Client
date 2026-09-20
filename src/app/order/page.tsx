@@ -26,7 +26,7 @@ export default function OrderEntryPage() {
   const phoneValid = phoneRegex.test(trimmedPhone);
   const canContinue =
     mode === "table"
-      ? !!trimmedTable
+      ? !!trimmedTable && (!trimmedPhone || phoneValid)
       : mode === "takeaway"
         ? phoneValid
         : phoneValid && !!trimmedAddress;
@@ -34,7 +34,10 @@ export default function OrderEntryPage() {
   function goToOrder() {
     if (!canContinue) return;
     if (mode === "table") {
-      router.push(`/order/${encodeURIComponent(trimmedTable)}`);
+      const query = trimmedPhone
+        ? `?phone=${encodeURIComponent(trimmedPhone)}`
+        : "";
+      router.push(`/order/${encodeURIComponent(trimmedTable)}${query}`);
     } else if (mode === "takeaway") {
       router.push(
         `/order/${TAKEAWAY_TABLE_VALUE}?phone=${encodeURIComponent(trimmedPhone)}`
@@ -178,6 +181,27 @@ export default function OrderEntryPage() {
               placeholder={pick(lang, "مثال: 12", "ex. 12")}
               className="w-full rounded-md border border-[var(--sindibad-line)] bg-[var(--sindibad-paper)] px-4 py-3 text-base focus:border-[var(--sindibad-maroon)] focus:outline-none"
             />
+            <p className="text-sm text-[var(--sindibad-muted)]">
+              {pick(
+                lang,
+                "رقم هاتفكم (اختياري) لجمع نقاط الولاء",
+                "Votre numéro de téléphone (facultatif) pour cumuler des points de fidélité"
+              )}
+            </p>
+            <input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && goToOrder()}
+              maxLength={20}
+              placeholder={pick(lang, "مثال: 0600000000", "ex. 0600000000")}
+              className="w-full rounded-md border border-[var(--sindibad-line)] bg-[var(--sindibad-paper)] px-4 py-3 text-base focus:border-[var(--sindibad-maroon)] focus:outline-none"
+            />
+            {trimmedPhone && !phoneValid && (
+              <p className="text-sm text-red-700">
+                {pick(lang, "رقم هاتف غير صالح", "Numéro de téléphone invalide")}
+              </p>
+            )}
           </>
         )}
 

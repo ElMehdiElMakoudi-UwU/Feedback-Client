@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useLanguage, pick } from "@/lib/language-context";
-import { advanceOrderStatus, cancelOrder } from "@/app/actions/orders";
+import { advanceOrderStatus, cancelOrder, confirmNewItems } from "@/app/actions/orders";
 import {
   ORDER_STATUS_LABEL,
   nextOrderStatus,
@@ -19,6 +19,7 @@ type OrderLine = {
   size: string | null;
   unitPrice: number;
   quantity: number;
+  confirmed: boolean;
 };
 
 type OrderView = {
@@ -210,6 +211,7 @@ function OrderCard({
   const [pending, startTransition] = useTransition();
   const label = ORDER_STATUS_LABEL[order.status];
   const nextLabel = nextActionLabel(order.status, lang);
+  const hasUnconfirmedItems = order.items.some((item) => !item.confirmed);
 
   return (
     <div
@@ -266,6 +268,11 @@ function OrderCard({
               {item.size === "LARGE" && (
                 <span className="ml-1 text-xs text-neutral-500">(L)</span>
               )}
+              {!item.confirmed && (
+                <span className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
+                  {pick(lang, "جديد", "Nouveau")}
+                </span>
+              )}
             </span>
             <span className="text-neutral-600">
               {item.unitPrice * item.quantity} {pick(lang, "درهم", "DH")}
@@ -273,6 +280,28 @@ function OrderCard({
           </div>
         ))}
       </div>
+
+      {hasUnconfirmedItems && (
+        <div className="mt-3 flex items-center justify-between gap-2 rounded-md bg-amber-50 px-3 py-2">
+          <p className="text-xs text-amber-800">
+            {pick(
+              lang,
+              "أضاف الزبون أصنافاً جديدة، يجب تأكيدها",
+              "Le client a ajouté des articles, à reconfirmer"
+            )}
+          </p>
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() =>
+              startTransition(() => confirmNewItems(order.id))
+            }
+            className="shrink-0 rounded-md bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-40"
+          >
+            {pick(lang, "تأكيد الإضافة", "Confirmer l'ajout")}
+          </button>
+        </div>
+      )}
 
       {(isDeliveryTable(order.tableNumber) ||
         isTakeawayTable(order.tableNumber)) && (
