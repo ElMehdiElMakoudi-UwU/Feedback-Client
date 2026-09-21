@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import { useLanguage, pick } from "@/lib/language-context";
-import { logRestock, submitOpeningCount, submitClosingCount } from "@/app/actions/stock";
+import { logRestocksBatch, submitOpeningCount, submitClosingCount } from "@/app/actions/stock";
 import {
+  IconCamera,
   IconCheckCircle,
   IconMoonStars,
   IconSunrise,
@@ -22,7 +22,16 @@ type Workstation = {
   ingredients: WorkstationIngredient[];
 };
 
-type ExistingEntry = { workstationIngredientId: string; actualQuantity: number };
+type ExistingEntry = { workstationIngredientId: string; actualQuantity: number; photoUrl?: string | null };
+
+type Restock = {
+  id: string;
+  workstationIngredientId: string;
+  quantity: number;
+  note: string | null;
+  photoUrl: string | null;
+  createdAt: string;
+};
 
 function StepBadge({ done }: { done: boolean }) {
   const { lang } = useLanguage();
@@ -35,32 +44,88 @@ function StepBadge({ done }: { done: boolean }) {
   );
 }
 
+// Compact file input for attaching a scale-reading photo to a quantity
+// entry. `capture="environment"` opens the back camera directly on mobile,
+// which is how workers actually use this (phone at the scale), while still
+// falling back to a normal file picker on desktop.
+function PhotoField({ name }: { name: string }) {
+  const { lang } = useLanguage();
+  return (
+    <label className="flex shrink-0 cursor-pointer items-center gap-1 rounded-md border border-neutral-300 px-2 py-1.5 text-xs text-neutral-500 transition-colors hover:border-neutral-400 hover:text-neutral-700">
+      <IconCamera className="h-4 w-4" />
+      <span className="hidden sm:inline">{pick(lang, "صورة", "Photo")}</span>
+      <input type="file" name={name} accept="image/*" capture="environment" className="hidden" />
+    </label>
+  );
+}
+
+function PhotoThumb({ url }: { url: string }) {
+  const { lang } = useLanguage();
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="shrink-0 text-xs text-neutral-500 underline decoration-dotted hover:text-neutral-900"
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={url}
+        alt={pick(lang, "صورة الميزان", "Photo de la balance")}
+        className="h-8 w-8 rounded object-cover"
+      />
+    </a>
+  );
+}
+
 export function StockCountView({
   workstation,
   openingSubmitted,
   closingSubmitted,
   openingEntries,
   closingEntries,
+  todayRestocks,
+  today,
 }: {
   workstation: Workstation;
   openingSubmitted: boolean;
   closingSubmitted: boolean;
   openingEntries: ExistingEntry[];
   closingEntries: ExistingEntry[];
+  todayRestocks: Restock[];
+  today: string;
 }) {
   const { lang } = useLanguage();
-  const [restockOpenFor, setRestockOpenFor] = useState<string | null>(null);
+
+  function restockTotal(workstationIngredientId: string) {
+    return todayRestocks
+      .filter((r) => r.workstationIngredientId === workstationIngredientId)
+      .reduce((sum, r) => sum + r.quantity, 0);
+  }
 
   function entryQty(entries: ExistingEntry[], workstationIngredientId: string) {
     const found = entries.find((e) => e.workstationIngredientId === workstationIngredientId);
     return found ? String(found.actualQuantity) : "";
   }
 
+  function entryPhoto(entries: ExistingEntry[], workstationIngredientId: string) {
+    return entries.find((e) => e.workstationIngredientId === workstationIngredientId)?.photoUrl || null;
+  }
+
+  const formattedDate = new Date(today).toLocaleDateString(lang === "ar" ? "ar" : "fr-FR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+
   return (
     <main className="mx-auto max-w-2xl px-6 py-10">
       <h1 className="mb-1 text-2xl font-semibold tracking-tight">
         {workstation.kitchen.name} — {workstation.name}
       </h1>
+      <p className="mb-4 text-sm font-medium capitalize text-neutral-700">{formattedDate}</p>
       <p className="mb-8 text-sm text-neutral-500">
         {pick(
           lang,
@@ -81,14 +146,20 @@ export function StockCountView({
 
         {openingSubmitted ? (
           <div className="flex flex-col divide-y divide-neutral-100">
-            {workstation.ingredients.map((wi) => (
-              <div key={wi.id} className="flex items-center justify-between py-2 text-sm">
-                <span>{wi.ingredient.name}</span>
-                <span className="text-neutral-500">
-                  {entryQty(openingEntries, wi.id) || "—"} {wi.ingredient.unit}
-                </span>
-              </div>
-            ))}
+            {workstation.ingredients.map((wi) => {
+              const photo = entryPhoto(openingEntries, wi.id);
+              return (
+                <div key={wi.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                  <span>{wi.ingredient.name}</span>
+                  <div className="flex items-center gap-2">
+                    {photo && <PhotoThumb url={photo} />}
+                    <span className="text-neutral-500">
+                      {entryQty(openingEntries, wi.id) || "—"} {wi.ingredient.unit}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         ) : workstation.ingredients.length > 0 ? (
           <form action={submitOpeningCount} className="flex flex-col gap-3">
@@ -104,15 +175,18 @@ export function StockCountView({
                 <label className="text-sm">
                   {wi.ingredient.name} ({wi.ingredient.unit})
                 </label>
-                <input
-                  type="number"
-                  name={`qty_${wi.id}`}
-                  step="0.01"
-                  min="0"
-                  defaultValue={wi.currentQuantity}
-                  required
-                  className="w-32 rounded-md border border-neutral-300 px-2 py-1.5 text-sm focus:border-neutral-900 focus:outline-none"
-                />
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    name={`qty_${wi.id}`}
+                    step="0.01"
+                    min="0"
+                    defaultValue={wi.currentQuantity}
+                    required
+                    className="w-28 rounded-md border border-neutral-300 px-2 py-1.5 text-sm focus:border-neutral-900 focus:outline-none"
+                  />
+                  <PhotoField name={`photo_${wi.id}`} />
+                </div>
               </div>
             ))}
             <button
@@ -129,65 +203,103 @@ export function StockCountView({
         )}
       </section>
 
-      {/* Live stock + mid-shift restocks, available once the shift has started */}
+      {/* Live stock, available once the shift has started */}
       {openingSubmitted && (
         <section className="mb-8">
           <h2 className="mb-3 text-sm font-medium text-neutral-500">
             {pick(lang, "المخزون الحالي", "Stock en cours")}
           </h2>
           <div className="flex flex-col divide-y divide-neutral-100 rounded-lg border border-neutral-200 px-4">
-            {workstation.ingredients.map((wi) => (
-              <div key={wi.id} className="py-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">
-                    {wi.ingredient.name}{" "}
-                    <span className="font-normal text-neutral-400">
-                      · {wi.currentQuantity} {wi.ingredient.unit}
-                    </span>
+            {workstation.ingredients.map((wi) => {
+              const restocked = restockTotal(wi.id);
+              return (
+                <div key={wi.id} className="flex items-center justify-between py-3 text-sm">
+                  <span className="font-medium">{wi.ingredient.name}</span>
+                  <span className="text-neutral-400">
+                    {wi.currentQuantity} {wi.ingredient.unit}
+                    {restocked > 0 && (
+                      <span className="ml-2 text-green-600">
+                        (+{restocked} {pick(lang, "اليوم", "aujourd'hui")})
+                      </span>
+                    )}
                   </span>
-                  {!closingSubmitted && (
-                    <button
-                      type="button"
-                      onClick={() => setRestockOpenFor(restockOpenFor === wi.id ? null : wi.id)}
-                      className="cursor-pointer text-xs text-neutral-600 transition-colors hover:text-neutral-900 hover:underline"
-                    >
-                      {pick(lang, "تموين", "Réappro")}
-                    </button>
-                  )}
                 </div>
-                {restockOpenFor === wi.id && (
-                  <form
-                    action={logRestock}
-                    className="mt-2 flex items-center gap-2"
-                    onSubmit={() => setRestockOpenFor(null)}
-                  >
-                    <input type="hidden" name="workstationIngredientId" value={wi.id} />
-                    <input
-                      type="number"
-                      name="quantity"
-                      step="0.01"
-                      min="0"
-                      required
-                      placeholder={pick(lang, "الكمية المضافة", "Quantité ajoutée")}
-                      className="w-40 rounded-md border border-neutral-300 px-2 py-1.5 text-sm focus:border-neutral-900 focus:outline-none"
-                    />
-                    <input
-                      type="text"
-                      name="note"
-                      placeholder={pick(lang, "ملاحظة (اختياري)", "Note (optionnel)")}
-                      className="flex-1 rounded-md border border-neutral-300 px-2 py-1.5 text-sm focus:border-neutral-900 focus:outline-none"
-                    />
-                    <button
-                      type="submit"
-                      className="cursor-pointer rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-neutral-700"
-                    >
-                      {pick(lang, "تسجيل", "Enregistrer")}
-                    </button>
-                  </form>
-                )}
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* Batch entry for restocks jotted on paper during service */}
+      {openingSubmitted && !closingSubmitted && (
+        <section className="mb-8 rounded-lg border-2 border-neutral-300 p-5">
+          <h2 className="mb-1 text-lg font-semibold">
+            {pick(lang, "التموين المسجل يدوياً", "Réapprovisionnements du jour")}
+          </h2>
+          <p className="mb-4 text-xs text-neutral-500">
+            {pick(
+              lang,
+              "أدخل الكميات التي أضفتها خلال الخدمة وسجلتها على الورقة، ثم أرسل قبل جرد النهاية.",
+              "Saisissez les quantités notées sur papier pendant le service, puis envoyez avant le comptage de fin de service."
+            )}
+          </p>
+          <form action={logRestocksBatch} className="flex flex-col gap-3">
+            <input type="hidden" name="workstationId" value={workstation.id} />
+            {workstation.ingredients.map((wi) => (
+              <div key={wi.id} className="flex items-center gap-2">
+                <label className="w-40 shrink-0 text-sm">
+                  {wi.ingredient.name} ({wi.ingredient.unit})
+                </label>
+                <input
+                  type="number"
+                  name={`restock_${wi.id}`}
+                  step="0.01"
+                  min="0"
+                  placeholder="0"
+                  className="w-20 rounded-md border border-neutral-300 px-2 py-1.5 text-sm focus:border-neutral-900 focus:outline-none"
+                />
+                <input
+                  type="text"
+                  name={`restocknote_${wi.id}`}
+                  placeholder={pick(lang, "ملاحظة (اختياري)", "Note (optionnel)")}
+                  className="flex-1 rounded-md border border-neutral-300 px-2 py-1.5 text-sm focus:border-neutral-900 focus:outline-none"
+                />
+                <PhotoField name={`restockphoto_${wi.id}`} />
               </div>
             ))}
-          </div>
+            <button
+              type="submit"
+              className="mt-2 self-start cursor-pointer rounded-lg bg-neutral-900 px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-neutral-700"
+            >
+              {pick(lang, "تسجيل التموين", "Enregistrer les réapprovisionnements")}
+            </button>
+          </form>
+
+          {todayRestocks.length > 0 && (
+            <div className="mt-5 border-t border-neutral-100 pt-4">
+              <h3 className="mb-2 text-xs font-medium text-neutral-400">
+                {pick(lang, "سجل اليوم", "Historique du jour")}
+              </h3>
+              <ul className="flex flex-col gap-1.5 text-xs text-neutral-500">
+                {todayRestocks.map((r) => {
+                  const wi = workstation.ingredients.find((w) => w.id === r.workstationIngredientId);
+                  return (
+                    <li key={r.id} className="flex items-center gap-2">
+                      {r.photoUrl && <PhotoThumb url={r.photoUrl} />}
+                      <span>
+                        {new Date(r.createdAt).toLocaleTimeString(lang === "ar" ? "ar" : "fr-FR", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}{" "}
+                        — {wi?.ingredient.name ?? "?"} +{r.quantity} {wi?.ingredient.unit}
+                        {r.note ? ` (${r.note})` : ""}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
         </section>
       )}
 
@@ -211,14 +323,20 @@ export function StockCountView({
           </p>
         ) : closingSubmitted ? (
           <div className="flex flex-col divide-y divide-neutral-100">
-            {workstation.ingredients.map((wi) => (
-              <div key={wi.id} className="flex items-center justify-between py-2 text-sm">
-                <span>{wi.ingredient.name}</span>
-                <span className="text-neutral-500">
-                  {entryQty(closingEntries, wi.id) || "—"} {wi.ingredient.unit}
-                </span>
-              </div>
-            ))}
+            {workstation.ingredients.map((wi) => {
+              const photo = entryPhoto(closingEntries, wi.id);
+              return (
+                <div key={wi.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                  <span>{wi.ingredient.name}</span>
+                  <div className="flex items-center gap-2">
+                    {photo && <PhotoThumb url={photo} />}
+                    <span className="text-neutral-500">
+                      {entryQty(closingEntries, wi.id) || "—"} {wi.ingredient.unit}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         ) : (
           <form action={submitClosingCount} className="flex flex-col gap-3">
@@ -227,15 +345,18 @@ export function StockCountView({
                 <label className="text-sm">
                   {wi.ingredient.name} ({wi.ingredient.unit})
                 </label>
-                <input
-                  type="number"
-                  name={`qty_${wi.id}`}
-                  step="0.01"
-                  min="0"
-                  defaultValue={entryQty(closingEntries, wi.id)}
-                  required
-                  className="w-32 rounded-md border border-neutral-300 px-2 py-1.5 text-sm focus:border-neutral-900 focus:outline-none"
-                />
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    name={`qty_${wi.id}`}
+                    step="0.01"
+                    min="0"
+                    defaultValue={entryQty(closingEntries, wi.id)}
+                    required
+                    className="w-28 rounded-md border border-neutral-300 px-2 py-1.5 text-sm focus:border-neutral-900 focus:outline-none"
+                  />
+                  <PhotoField name={`photo_${wi.id}`} />
+                </div>
               </div>
             ))}
             <button

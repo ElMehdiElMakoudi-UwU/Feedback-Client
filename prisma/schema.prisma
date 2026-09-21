@@ -236,6 +236,7 @@ model StockRestock {
   workstationIngredient   WorkstationIngredient @relation(fields: [workstationIngredientId], references: [id], onDelete: Cascade)
   quantity                Float
   note                    String?
+  photoUrl                String? // proof-of-scale photo, saved under /uploads
   createdById             String
   createdBy               AdminUser             @relation(fields: [createdById], references: [id])
   createdAt               DateTime              @default(now())
@@ -303,6 +304,7 @@ model StockCountEntry {
   actualQuantity          Float
   expectedQuantity        Float?
   variance                Float?
+  photoUrl                String? // proof-of-scale photo, saved under /uploads
 
   @@unique([stockCountId, workstationIngredientId])
 }

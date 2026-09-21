@@ -9,6 +9,8 @@
     "lint": "eslint",
     "db:seed": "tsx prisma/seed.ts",
     "db:seed-stock": "tsx prisma/seed-stock.ts",
+    "db:seed-stock-history": "tsx prisma/seed-stock-history.ts",
+    "db:seed-feedback": "tsx prisma/seed-feedback.ts",
     "db:ensure-admin": "tsx prisma/ensure-admin.ts",
     "menu:export": "tsx scripts/export-menu.ts",
     "menu:import": "tsx scripts/import-menu.ts"

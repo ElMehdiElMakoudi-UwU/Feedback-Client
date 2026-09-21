@@ -19,6 +19,11 @@ const nextConfig: NextConfig = {
     // app is these local, already-small brand assets, so skip it.
     unoptimized: true,
   },
+  experimental: {
+    // Default is 1MB; stock-count forms let workers attach scale-reading
+    // photos, which routinely exceed that.
+    serverActions: { bodySizeLimit: "10mb" },
+  },
 };
 
 export default nextConfig;

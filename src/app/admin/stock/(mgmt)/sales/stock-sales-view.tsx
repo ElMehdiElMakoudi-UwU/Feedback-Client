@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useLanguage, pick } from "@/lib/language-context";
+import { useFormStatus } from "react-dom";
+import { useLanguage, pick, type Lang } from "@/lib/language-context";
 import { saveDailySales } from "@/app/actions/stock";
 import { IconCart, IconSearch } from "@/app/admin/stock/icons";
 
@@ -177,13 +178,25 @@ export function StockSalesView({
           </p>
         )}
 
-        <button
-          type="submit"
-          className="sticky bottom-4 self-start cursor-pointer rounded-lg bg-neutral-900 px-6 py-2.5 text-sm font-medium text-white shadow-lg transition-colors hover:bg-neutral-700"
-        >
-          {pick(lang, "حفظ المبيعات", "Enregistrer les ventes")}
-        </button>
+        <div className="sticky bottom-4 self-start">
+          <SaveButton lang={lang} />
+        </div>
       </form>
     </main>
+  );
+}
+
+function SaveButton({ lang }: { lang: Lang }) {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="cursor-pointer rounded-lg bg-neutral-900 px-6 py-2.5 text-sm font-medium text-white shadow-lg transition-colors hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      {pending
+        ? pick(lang, "جارٍ الحفظ...", "Enregistrement...")
+        : pick(lang, "حفظ المبيعات", "Enregistrer les ventes")}
+    </button>
   );
 }

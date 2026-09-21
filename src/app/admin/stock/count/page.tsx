@@ -19,8 +19,10 @@ export default async function StockCountPage() {
   }
 
   const today = normalizeToDay(new Date());
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
 
-  const [workstation, openingCount, closingCount] = await Promise.all([
+  const [workstation, openingCount, closingCount, todayRestocks] = await Promise.all([
     prisma.workstation.findUnique({
       where: { id: worker.workstationId },
       include: {
@@ -48,6 +50,21 @@ export default async function StockCountPage() {
       },
       include: { entries: true },
     }),
+    prisma.stockRestock.findMany({
+      where: {
+        workstationIngredient: { workstationId: worker.workstationId },
+        createdAt: { gte: today, lt: tomorrow },
+      },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        workstationIngredientId: true,
+        quantity: true,
+        note: true,
+        photoUrl: true,
+        createdAt: true,
+      },
+    }),
   ]);
 
   if (!workstation) {
@@ -65,6 +82,8 @@ export default async function StockCountPage() {
       closingSubmitted={!!closingCount}
       openingEntries={openingCount?.entries ?? []}
       closingEntries={closingCount?.entries ?? []}
+      todayRestocks={todayRestocks.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() }))}
+      today={today.toISOString()}
     />
   );
 }

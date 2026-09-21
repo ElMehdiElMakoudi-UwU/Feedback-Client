@@ -10,6 +10,7 @@ import {
   IconClipboard,
   IconCart,
   IconScale,
+  IconPackage,
 } from "@/app/admin/stock/icons";
 
 const tabs = [
@@ -19,6 +20,7 @@ const tabs = [
   { href: "/admin/stock/recipes", icon: IconClipboard, ar: "الوصفات", fr: "Fiches techniques" },
   { href: "/admin/stock/sales", icon: IconCart, ar: "المبيعات", fr: "Ventes" },
   { href: "/admin/stock/variance", icon: IconScale, ar: "الفروقات", fr: "Écarts" },
+  { href: "/admin/stock/consumption", icon: IconPackage, ar: "الاستهلاك", fr: "Consommation" },
 ] as const;
 
 export function StockSubNav() {

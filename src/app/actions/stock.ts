@@ -1,11 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin, requireStaff, requireWorker } from "@/lib/require-admin";
 import { finalizeStockCount, normalizeToDay } from "@/lib/stock";
+import { savePhoto } from "@/lib/upload";
 
 function revalidateStock() {
   revalidatePath("/admin/stock");
@@ -14,6 +16,7 @@ function revalidateStock() {
   revalidatePath("/admin/stock/recipes");
   revalidatePath("/admin/stock/sales");
   revalidatePath("/admin/stock/variance");
+  revalidatePath("/admin/stock/consumption");
   revalidatePath("/admin/stock/count");
 }
 
@@ -258,12 +261,15 @@ export async function logRestock(formData: FormData) {
   if (!wsIngredient) return;
   if (user.role === "WORKER" && user.workstationId !== wsIngredient.workstationId) return;
 
+  const photoUrl = await savePhoto(formData.get("photo"), "restocks");
+
   await prisma.$transaction([
     prisma.stockRestock.create({
       data: {
         workstationIngredientId: parsed.data.workstationIngredientId,
         quantity: parsed.data.quantity,
         note: parsed.data.note,
+        photoUrl,
         createdById: user.id,
       },
     }),
@@ -276,16 +282,67 @@ export async function logRestock(formData: FormData) {
   revalidateStock();
 }
 
+// Batch version of logRestock: workers typically jot restock quantities on
+// paper during a fast-paced shift and enter them all at once, in one go,
+// before submitting the closing count — rather than logging each one live.
+export async function logRestocksBatch(formData: FormData) {
+  const user = await requireStaff();
+  if (user.role !== "ADMIN" && user.role !== "WORKER") return;
+
+  const workstationId = String(formData.get("workstationId") || "");
+  if (!workstationId) return;
+  if (user.role === "WORKER" && user.workstationId !== workstationId) return;
+
+  const wsIngredients = await prisma.workstationIngredient.findMany({
+    where: { workstationId },
+  });
+
+  const entries: { workstationIngredientId: string; quantity: number; note?: string; photoUrl: string | null }[] =
+    [];
+  for (const wi of wsIngredients) {
+    const raw = formData.get(`restock_${wi.id}`);
+    if (raw === null || raw === "") continue;
+    const quantity = Number(raw);
+    if (!Number.isFinite(quantity) || quantity <= 0) continue;
+    const noteRaw = formData.get(`restocknote_${wi.id}`);
+    const note = typeof noteRaw === "string" && noteRaw.trim() ? noteRaw.trim().slice(0, 200) : undefined;
+    const photoUrl = await savePhoto(formData.get(`restockphoto_${wi.id}`), "restocks");
+    entries.push({ workstationIngredientId: wi.id, quantity, note, photoUrl });
+  }
+  if (entries.length === 0) return;
+
+  await prisma.$transaction(
+    entries.flatMap((entry) => [
+      prisma.stockRestock.create({
+        data: {
+          workstationIngredientId: entry.workstationIngredientId,
+          quantity: entry.quantity,
+          note: entry.note,
+          photoUrl: entry.photoUrl,
+          createdById: user.id,
+        },
+      }),
+      prisma.workstationIngredient.update({
+        where: { id: entry.workstationIngredientId },
+        data: { currentQuantity: { increment: entry.quantity } },
+      }),
+    ])
+  );
+
+  revalidateStock();
+}
+
 // ---- Start/end-of-shift stock counts (worker) ----
 
-function readCountEntries(formData: FormData, wsIngredients: { id: string }[]) {
-  const entries: { workstationIngredientId: string; actualQuantity: number }[] = [];
+async function readCountEntries(formData: FormData, wsIngredients: { id: string }[], photoSubdir: string) {
+  const entries: { workstationIngredientId: string; actualQuantity: number; photoUrl: string | null }[] = [];
   for (const wsIngredient of wsIngredients) {
     const raw = formData.get(`qty_${wsIngredient.id}`);
     if (raw === null || raw === "") continue;
     const quantity = Number(raw);
     if (!Number.isFinite(quantity) || quantity < 0) continue;
-    entries.push({ workstationIngredientId: wsIngredient.id, actualQuantity: quantity });
+    const photoUrl = await savePhoto(formData.get(`photo_${wsIngredient.id}`), photoSubdir);
+    entries.push({ workstationIngredientId: wsIngredient.id, actualQuantity: quantity, photoUrl });
   }
   return entries;
 }
@@ -313,7 +370,7 @@ export async function submitOpeningCount(formData: FormData) {
     where: { workstationId: worker.workstationId },
   });
 
-  const entries = readCountEntries(formData, wsIngredients);
+  const entries = await readCountEntries(formData, wsIngredients, "opening-counts");
   if (entries.length === 0) return;
 
   await prisma.$transaction([
@@ -373,7 +430,7 @@ export async function submitClosingCount(formData: FormData) {
     where: { workstationId: worker.workstationId },
   });
 
-  const entries = readCountEntries(formData, wsIngredients);
+  const entries = await readCountEntries(formData, wsIngredients, "closing-counts");
   if (entries.length === 0) return;
 
   await prisma.stockCount.create({
@@ -440,4 +497,5 @@ export async function saveDailySales(formData: FormData) {
   }
 
   revalidateStock();
+  redirect(`/admin/stock/variance?date=${date.toISOString().slice(0, 10)}`);
 }

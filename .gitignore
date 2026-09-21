@@ -40,6 +40,9 @@ yarn-error.log*
 /prisma/dev.db
 /prisma/dev.db-journal
 
+# uploaded photos (runtime data, not source)
+/public/uploads
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

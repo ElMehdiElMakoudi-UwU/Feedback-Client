@@ -93,3 +93,169 @@ export async function finalizeStockCount(workstationId: string, date: Date) {
     });
   });
 }
+
+export type WorkstationConsumption = {
+  workstationId: string;
+  workstationName: string;
+  kitchenName: string;
+  expectedConsumed: number;
+  actualConsumed: number | null;
+  variance: number | null;
+};
+
+export type IngredientConsumption = {
+  ingredientId: string;
+  ingredientName: string;
+  unit: string;
+  totalExpected: number;
+  totalActual: number | null;
+  totalVariance: number | null;
+  byWorkstation: WorkstationConsumption[];
+};
+
+/**
+ * Rolls up, for a given day, how much of each ingredient was expected to be
+ * consumed (from recipes x sales) and how much actually was (from finalized
+ * closing counts' variance), across every post — so an ingredient bought
+ * once (e.g. chicken) but used by several posts (Tacos, Pizza, Pasticcio...)
+ * shows as one line, with a per-post breakdown available underneath.
+ */
+export async function getConsumptionByIngredient(date: Date): Promise<IngredientConsumption[]> {
+  const day = normalizeToDay(date);
+
+  const dailySales = await prisma.dailySales.findUnique({
+    where: { date: day },
+    include: { items: true },
+  });
+
+  const menuItems = await prisma.menuItem.findMany({
+    where: { workstationId: { not: null } },
+    include: { recipeItems: true, workstation: { include: { kitchen: true } } },
+  });
+
+  // key `${workstationId}:${ingredientId}` -> expected units consumed that day
+  const expectedMap = new Map<string, number>();
+  const workstationMeta = new Map<string, { name: string; kitchenName: string }>();
+
+  if (dailySales) {
+    for (const item of dailySales.items) {
+      const menuItem = menuItems.find((m) => m.id === item.menuItemId);
+      if (!menuItem || !menuItem.workstationId || !menuItem.workstation) continue;
+      workstationMeta.set(menuItem.workstationId, {
+        name: menuItem.workstation.name,
+        kitchenName: menuItem.workstation.kitchen.name,
+      });
+      for (const recipeItem of menuItem.recipeItems) {
+        if (recipeItem.size && recipeItem.size !== item.size) continue;
+        if (!recipeItem.size && item.size) continue;
+        const key = `${menuItem.workstationId}:${recipeItem.ingredientId}`;
+        expectedMap.set(key, (expectedMap.get(key) ?? 0) + recipeItem.quantity * item.quantitySold);
+      }
+    }
+  }
+
+  const stockCounts = await prisma.stockCount.findMany({
+    where: { date: day, period: "CLOSING" },
+    include: {
+      workstation: { include: { kitchen: true } },
+      entries: { include: { workstationIngredient: { include: { ingredient: true } } } },
+    },
+  });
+
+  type Row = {
+    ingredientId: string;
+    ingredientName: string;
+    unit: string;
+    workstationId: string;
+    workstationName: string;
+    kitchenName: string;
+    expectedConsumed: number;
+    actualConsumed: number | null;
+    variance: number | null;
+  };
+  const rows = new Map<string, Row>();
+
+  for (const [key, expectedConsumed] of expectedMap) {
+    const [workstationId, ingredientId] = key.split(":");
+    const meta = workstationMeta.get(workstationId);
+    rows.set(key, {
+      ingredientId,
+      ingredientName: "",
+      unit: "",
+      workstationId,
+      workstationName: meta?.name ?? "",
+      kitchenName: meta?.kitchenName ?? "",
+      expectedConsumed,
+      actualConsumed: null,
+      variance: null,
+    });
+  }
+
+  for (const count of stockCounts) {
+    for (const entry of count.entries) {
+      if (entry.variance == null) continue;
+      const ingredientId = entry.workstationIngredient.ingredientId;
+      const key = `${count.workstationId}:${ingredientId}`;
+      const expectedConsumed = expectedMap.get(key) ?? 0;
+      rows.set(key, {
+        ingredientId,
+        ingredientName: entry.workstationIngredient.ingredient.name,
+        unit: entry.workstationIngredient.ingredient.unit,
+        workstationId: count.workstationId,
+        workstationName: count.workstation.name,
+        kitchenName: count.workstation.kitchen.name,
+        expectedConsumed,
+        actualConsumed: expectedConsumed - entry.variance,
+        variance: entry.variance,
+      });
+    }
+  }
+
+  const missingNameIds = [
+    ...new Set([...rows.values()].filter((r) => !r.ingredientName).map((r) => r.ingredientId)),
+  ];
+  if (missingNameIds.length > 0) {
+    const ingredients = await prisma.ingredient.findMany({ where: { id: { in: missingNameIds } } });
+    for (const row of rows.values()) {
+      if (!row.ingredientName) {
+        const ingredient = ingredients.find((i) => i.id === row.ingredientId);
+        if (ingredient) {
+          row.ingredientName = ingredient.name;
+          row.unit = ingredient.unit;
+        }
+      }
+    }
+  }
+
+  const byIngredient = new Map<string, IngredientConsumption>();
+  for (const row of rows.values()) {
+    let agg = byIngredient.get(row.ingredientId);
+    if (!agg) {
+      agg = {
+        ingredientId: row.ingredientId,
+        ingredientName: row.ingredientName,
+        unit: row.unit,
+        totalExpected: 0,
+        totalActual: null,
+        totalVariance: null,
+        byWorkstation: [],
+      };
+      byIngredient.set(row.ingredientId, agg);
+    }
+    agg.totalExpected += row.expectedConsumed;
+    if (row.actualConsumed != null) {
+      agg.totalActual = (agg.totalActual ?? 0) + row.actualConsumed;
+      agg.totalVariance = (agg.totalVariance ?? 0) + (row.variance ?? 0);
+    }
+    agg.byWorkstation.push({
+      workstationId: row.workstationId,
+      workstationName: row.workstationName,
+      kitchenName: row.kitchenName,
+      expectedConsumed: row.expectedConsumed,
+      actualConsumed: row.actualConsumed,
+      variance: row.variance,
+    });
+  }
+
+  return [...byIngredient.values()].sort((a, b) => a.ingredientName.localeCompare(b.ingredientName));
+}
