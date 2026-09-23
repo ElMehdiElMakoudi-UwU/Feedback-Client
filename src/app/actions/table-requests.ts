@@ -7,9 +7,9 @@ import { requireStaff } from "@/lib/require-admin";
 import { emitTableRequestEvent } from "@/lib/order-events";
 import { isDeliveryTable, isTakeawayTable } from "@/lib/order-mode";
 import {
+  GUEST_TABLE_REQUEST_TYPES,
   PAYMENT_METHODS,
   TABLE_REQUEST_REUSE_WINDOW_MS,
-  TABLE_REQUEST_TYPES,
   type PaymentMethod,
   type TableRequestStatus,
   type TableRequestType,
@@ -18,7 +18,7 @@ import {
 const createTableRequestSchema = z
   .object({
     tableNumber: z.string().trim().min(1).max(20),
-    type: z.enum(TABLE_REQUEST_TYPES),
+    type: z.enum(GUEST_TABLE_REQUEST_TYPES),
     paymentMethod: z.enum(PAYMENT_METHODS).optional(),
   })
   .refine((input) => input.type === "BILL" || !input.paymentMethod, {
@@ -94,7 +94,7 @@ export async function createTableRequest(
 }
 
 export async function resolveTableRequest(requestId: string) {
-  await requireStaff();
+  const staff = await requireStaff();
 
   const request = await prisma.tableRequest.findUnique({
     where: { id: requestId },
@@ -105,6 +105,19 @@ export async function resolveTableRequest(requestId: string) {
     where: { id: requestId },
     data: { status: "DONE", resolvedAt: new Date() },
   });
+
+  // A manager visit for a low rating counts as first contact on its case.
+  if (resolved.feedbackId) {
+    await prisma.feedback.updateMany({
+      where: { id: resolved.feedbackId, recoveryStatus: "OPEN" },
+      data: {
+        recoveryStatus: "CONTACTED",
+        handledById: staff.id,
+        handledAt: new Date(),
+      },
+    });
+    revalidatePath("/admin/feedback/recovery");
+  }
 
   emitRequest(resolved);
   revalidatePath("/admin/orders");

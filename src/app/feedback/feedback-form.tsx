@@ -8,6 +8,7 @@ import {
   type RateableMenuItem,
 } from "@/app/actions/feedback";
 import { pick, type Lang } from "@/lib/language-context";
+import { isLowRating } from "@/lib/recovery";
 
 const initialState: FeedbackFormState = { status: "idle" };
 
@@ -68,6 +69,16 @@ export function FeedbackForm({
   const [serviceRating, setServiceRating] = useState(0);
   const [enteredDraw, setEnteredDraw] = useState(false);
   const [itemRatings, setItemRatings] = useState<Record<string, number>>({});
+  const [requestManager, setRequestManager] = useState(false);
+  const [contactConsent, setContactConsent] = useState(false);
+
+  const lowRating = isLowRating([
+    foodRating,
+    serviceRating,
+    ...Object.values(itemRatings),
+  ]);
+  const wantsContact = lowRating && contactConsent;
+  const showPhone = enteredDraw || wantsContact;
 
   if (state.status === "success") {
     return (
@@ -82,6 +93,21 @@ export function FeedbackForm({
             "Votre avis nous aide à nous améliorer."
           )}
         </p>
+        {(state.managerRequested || state.contactConsent) && (
+          <p className="mt-4 rounded-md bg-[var(--sindibad-rose)]/20 px-4 py-3 text-sm text-[var(--sindibad-maroon)]">
+            {state.managerRequested
+              ? pick(
+                  lang,
+                  "نعتذر عن تجربتكم. المسؤول في طريقه إلى طاولتكم.",
+                  "Nous sommes désolés. Un responsable arrive à votre table."
+                )
+              : pick(
+                  lang,
+                  "نعتذر عن تجربتكم. سنتواصل معكم قريباً.",
+                  "Nous sommes désolés. Nous vous contacterons très vite."
+                )}
+          </p>
+        )}
         {state.enteredDraw && (
           <p className="mt-4 rounded-md bg-[var(--sindibad-rose)]/20 px-4 py-3 text-sm text-[var(--sindibad-maroon)]">
             {pick(
@@ -193,6 +219,59 @@ export function FeedbackForm({
         />
       </div>
 
+      {lowRating && (
+        <div className="rounded-md border border-[var(--sindibad-maroon)]/40 bg-[var(--sindibad-paper)] p-4">
+          <p className="font-display text-base text-[var(--sindibad-maroon)]">
+            {pick(
+              lang,
+              "نأسف لأن تجربتكم لم تكن في المستوى",
+              "Désolés que ce ne soit pas à la hauteur"
+            )}
+          </p>
+          <p className="mt-1 text-sm text-[var(--sindibad-muted)]">
+            {pick(
+              lang,
+              "نود إصلاح الأمر. كيف يمكننا مساعدتكم؟",
+              "Nous aimerions arranger les choses. Comment pouvons-nous aider ?"
+            )}
+          </p>
+          <div className="mt-3 flex flex-col gap-3">
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                name="requestManager"
+                checked={requestManager}
+                onChange={(e) => setRequestManager(e.target.checked)}
+                className="mt-1 h-4 w-4 accent-[var(--sindibad-maroon)]"
+              />
+              <span className="text-sm text-[var(--sindibad-ink)]">
+                {pick(
+                  lang,
+                  "أرغب في أن يأتي المسؤول إلى طاولتي الآن",
+                  "Je souhaite qu'un responsable vienne à ma table maintenant"
+                )}
+              </span>
+            </label>
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                name="contactConsent"
+                checked={contactConsent}
+                onChange={(e) => setContactConsent(e.target.checked)}
+                className="mt-1 h-4 w-4 accent-[var(--sindibad-maroon)]"
+              />
+              <span className="text-sm text-[var(--sindibad-ink)]">
+                {pick(
+                  lang,
+                  "يمكنكم التواصل معي لاحقاً بخصوص هذه الزيارة",
+                  "Vous pouvez me recontacter au sujet de cette visite"
+                )}
+              </span>
+            </label>
+          </div>
+        </div>
+      )}
+
       <div className="rounded-md border border-[var(--sindibad-rose)]/60 bg-[var(--sindibad-rose)]/10 p-4">
         <label className="flex items-start gap-3">
           <input
@@ -217,34 +296,46 @@ export function FeedbackForm({
             )}
           </span>
         </label>
-
-        {enteredDraw && (
-          <div className="mt-3">
-            <label
-              htmlFor="phone"
-              className="mb-2 block text-sm font-medium text-[var(--sindibad-ink)]"
-            >
-              {pick(lang, "رقم الهاتف", "Numéro de téléphone")}
-            </label>
-            <input
-              id="phone"
-              name="phone"
-              type="tel"
-              required={enteredDraw}
-              maxLength={20}
-              placeholder={pick(lang, "0600000000", "0600000000")}
-              className="w-full rounded-md border border-[var(--sindibad-line)] bg-[var(--sindibad-paper)] px-4 py-3 text-base focus:border-[var(--sindibad-maroon)] focus:outline-none"
-            />
-            <p className="mt-1 text-xs text-[var(--sindibad-muted)]">
-              {pick(
-                lang,
-                "سنستخدم هذا الرقم فقط للتواصل معكم في حال الفوز.",
-                "Ce numéro ne sera utilisé que pour vous contacter en cas de victoire."
-              )}
-            </p>
-          </div>
-        )}
       </div>
+
+      {showPhone && (
+        <div>
+          <label
+            htmlFor="phone"
+            className="mb-2 block text-sm font-medium text-[var(--sindibad-ink)]"
+          >
+            {pick(lang, "رقم الهاتف", "Numéro de téléphone")}
+          </label>
+          <input
+            id="phone"
+            name="phone"
+            type="tel"
+            required
+            maxLength={20}
+            placeholder={pick(lang, "0600000000", "0600000000")}
+            className="w-full rounded-md border border-[var(--sindibad-line)] bg-[var(--sindibad-paper)] px-4 py-3 text-base focus:border-[var(--sindibad-maroon)] focus:outline-none"
+          />
+          <p className="mt-1 text-xs text-[var(--sindibad-muted)]">
+            {wantsContact && enteredDraw
+              ? pick(
+                  lang,
+                  "سنستخدم هذا الرقم فقط للتواصل معكم بخصوص هذه الزيارة أو في حال الفوز.",
+                  "Ce numéro ne sera utilisé que pour vous recontacter au sujet de cette visite ou en cas de victoire."
+                )
+              : wantsContact
+                ? pick(
+                    lang,
+                    "سنستخدم هذا الرقم فقط للتواصل معكم بخصوص هذه الزيارة.",
+                    "Ce numéro ne sera utilisé que pour vous recontacter au sujet de cette visite."
+                  )
+                : pick(
+                  lang,
+                  "سنستخدم هذا الرقم فقط للتواصل معكم في حال الفوز.",
+                  "Ce numéro ne sera utilisé que pour vous contacter en cas de victoire."
+                )}
+          </p>
+        </div>
+      )}
 
       {state.status === "error" && (
         <p className="text-sm text-red-700">{state.message}</p>

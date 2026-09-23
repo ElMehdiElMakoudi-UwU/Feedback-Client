@@ -43,6 +43,11 @@ export default async function AdminOrdersPage() {
       prisma.tableRequest.findMany({
         where: { status: "PENDING" },
         orderBy: { createdAt: "asc" },
+        include: {
+          feedback: {
+            select: { foodRating: true, serviceRating: true, comment: true },
+          },
+        },
       }),
     ]);
 
@@ -61,7 +66,13 @@ export default async function AdminOrdersPage() {
         type: request.type as TableRequestType,
         paymentMethod: request.paymentMethod as PaymentMethod | null,
         createdAt: request.createdAt.toISOString(),
-      }))}
+        feedback: request.feedback,
+      }))
+        // Unhappy guests first; the sort is stable so each group stays oldest-first.
+        .sort(
+          (a, b) =>
+            Number(b.type === "MANAGER") - Number(a.type === "MANAGER")
+        )}
       initialOrders={orders.map((order) => ({
         id: order.id,
         tableNumber: order.tableNumber,

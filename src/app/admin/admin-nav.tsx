@@ -58,6 +58,12 @@ function buildNav(role: string): NavEntry[] {
       fr: "Avis",
       items: [
         { href: "/admin/feedback", icon: IconStar, ar: "التقييمات", fr: "Avis" },
+        {
+          href: "/admin/feedback/recovery",
+          icon: IconHeart,
+          ar: "معالجة الشكاوى",
+          fr: "Récupération",
+        },
         { href: "/admin/draw", icon: IconGift, ar: "السحب", fr: "Tirage" },
       ],
     });
@@ -225,7 +231,14 @@ function MobileGroup({
         <div className="flex flex-col pb-2 pl-8">
           {entry.items.map((item) => {
             const ItemIcon = item.icon;
-            const itemActive = pathname.startsWith(item.href);
+            // A nested sibling (e.g. /admin/feedback/recovery) wins over its parent.
+            const itemActive =
+              pathname.startsWith(item.href) &&
+              !entry.items.some(
+                (other) =>
+                  other.href.length > item.href.length &&
+                  pathname.startsWith(other.href)
+              );
             return (
               <Link
                 key={item.href}

@@ -51,6 +51,11 @@ type TableRequestView = {
   type: TableRequestType;
   paymentMethod: PaymentMethod | null;
   createdAt: string;
+  feedback: {
+    foodRating: number;
+    serviceRating: number;
+    comment: string | null;
+  } | null;
 };
 
 type OrdersStats = {
@@ -400,14 +405,18 @@ function TableRequestCard({
     ? PAYMENT_METHOD_LABEL[request.paymentMethod]
     : null;
   const minutes = waitingMinutes(request.createdAt, now);
-  const urgent = minutes >= WAIT_WARN_MINUTES;
+  const isManager = request.type === "MANAGER";
+  // An unhappy guest should never wait: manager calls are urgent immediately.
+  const urgent = isManager || minutes >= WAIT_WARN_MINUTES;
 
   return (
     <div
       className={`flex w-64 shrink-0 flex-col gap-2 rounded-md border bg-white p-3 ${
         highlighted
           ? "animate-pulse border-[var(--sindibad-maroon)] ring-2 ring-[var(--sindibad-maroon)]"
-          : "border-neutral-200"
+          : isManager
+            ? "border-red-300"
+            : "border-neutral-200"
       }`}
     >
       <div className="flex items-start justify-between gap-2">
@@ -428,6 +437,19 @@ function TableRequestCard({
           {pick(lang, `${minutes} د`, `${minutes} min`)}
         </span>
       </div>
+      {request.feedback && (
+        <div className="rounded bg-red-50 px-2 py-1.5 text-xs text-red-800">
+          <p>
+            {pick(lang, "الطعام", "Plat")} {request.feedback.foodRating}★ ·{" "}
+            {pick(lang, "الخدمة", "Service")} {request.feedback.serviceRating}★
+          </p>
+          {request.feedback.comment && (
+            <p className="mt-0.5 line-clamp-3 text-red-900">
+              &ldquo;{request.feedback.comment}&rdquo;
+            </p>
+          )}
+        </div>
+      )}
       <div className="flex gap-2">
         {request.type === "BILL" && (
           <button

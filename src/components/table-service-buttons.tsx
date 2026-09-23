@@ -10,6 +10,7 @@ import {
   TABLE_REQUEST_LABEL,
   type PaymentMethod,
   type PendingTableRequest,
+  type GuestTableRequestType,
   type TableRequestType,
 } from "@/lib/table-requests";
 
@@ -88,7 +89,7 @@ export function TableServiceButtons({
   useRequestUpdates(waiter, setWaiter);
   useRequestUpdates(bill, setBill);
 
-  function send(type: TableRequestType, paymentMethod?: PaymentMethod) {
+  function send(type: GuestTableRequestType, paymentMethod?: PaymentMethod) {
     setError(null);
     startTransition(async () => {
       const result = await createTableRequest({ tableNumber, type, paymentMethod });

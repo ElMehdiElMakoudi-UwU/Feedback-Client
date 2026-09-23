@@ -19,6 +19,7 @@ model AdminUser {
   restocks      StockRestock[]
   dailySales    DailySales[]
   stockCounts   StockCount[]
+  recoveryCases Feedback[]
 }
 
 model MenuSection {
@@ -114,6 +115,19 @@ model Feedback {
   createdAt     DateTime     @default(now())
   drawWinner    DrawWinner?
   itemRatings   ItemRating[]
+
+  // Low-rating recovery (any rating ≤2). Null recoveryStatus = not a case.
+  recoveryStatus   String? // "OPEN" | "CONTACTED" | "RESOLVED" | "NO_ACTION"
+  managerRequested Boolean       @default(false)
+  contactConsent   Boolean       @default(false) // guest agreed to be contacted about this visit
+  rootCause        String?
+  recoveryNote     String?
+  handledById      String?
+  handledBy        AdminUser?    @relation(fields: [handledById], references: [id], onDelete: SetNull)
+  handledAt        DateTime?
+  tableRequest     TableRequest?
+
+  @@index([recoveryStatus])
 }
 
 model ItemRating {
@@ -348,11 +362,13 @@ model StockCountEntry {
 model TableRequest {
   id            String    @id @default(cuid())
   tableNumber   String
-  type          String // "WAITER" | "BILL"
+  type          String // "WAITER" | "BILL" | "MANAGER"
   paymentMethod String? // "CASH" | "CARD" — only for BILL requests
   status        String    @default("PENDING") // "PENDING" | "DONE"
   createdAt     DateTime  @default(now())
   resolvedAt    DateTime?
+  feedbackId    String?   @unique // set for MANAGER requests raised by a low rating
+  feedback      Feedback? @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
 
   @@index([status, tableNumber])
 }
