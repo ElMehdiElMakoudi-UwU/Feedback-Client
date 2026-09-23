@@ -1,3 +1,5 @@
+import type { MenuOptionGroupView } from "@/lib/menu-options";
+
 export type MenuItemView = {
   id: string;
   nameAr: string;
@@ -10,6 +12,7 @@ export type MenuItemView = {
   priceLarge: number | null;
   comingSoon: boolean;
   photoUrl: string | null;
+  optionGroups: MenuOptionGroupView[];
 };
 
 export type MenuCategoryView = {

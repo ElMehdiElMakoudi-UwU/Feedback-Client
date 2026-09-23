@@ -23,6 +23,17 @@ export default async function OrderPage({
           items: {
             where: { available: true, comingSoon: false },
             orderBy: { sortOrder: "asc" },
+            include: {
+              optionGroups: {
+                orderBy: { sortOrder: "asc" },
+                include: {
+                  options: {
+                    where: { available: true },
+                    orderBy: { sortOrder: "asc" },
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -49,6 +60,21 @@ export default async function OrderPage({
         priceLarge: item.priceLarge,
         comingSoon: item.comingSoon,
         photoUrl: item.photoUrl,
+        optionGroups: item.optionGroups
+          .filter((group) => group.options.length > 0)
+          .map((group) => ({
+            id: group.id,
+            nameAr: group.nameAr,
+            nameFr: group.nameFr,
+            required: group.required,
+            maxSelect: group.maxSelect,
+            options: group.options.map((option) => ({
+              id: option.id,
+              nameAr: option.nameAr,
+              nameFr: option.nameFr,
+              priceDelta: option.priceDelta,
+            })),
+          })),
       })),
     })),
   }));

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useLanguage, pick } from "@/lib/language-context";
 import { LanguageToggle } from "@/components/language-toggle";
 import type { MenuSectionView, MenuItemView } from "./types";
+import { formatPriceDelta } from "@/lib/menu-options";
 
 function slug(id: string) {
   return `sec-${id}`;
@@ -120,6 +121,25 @@ export function MenuView({ sections }: { sections: MenuSectionView[] }) {
                             )}
                           </p>
                         )}
+                        {item.optionGroups.map((group) => (
+                          <p
+                            key={group.id}
+                            className="text-xs text-[var(--sindibad-muted)]"
+                          >
+                            <span className="text-[var(--sindibad-ink)]">
+                              {pick(lang, group.nameAr, group.nameFr)}:
+                            </span>{" "}
+                            {group.options
+                              .map(
+                                (option) =>
+                                  pick(lang, option.nameAr, option.nameFr) +
+                                  (option.priceDelta
+                                    ? ` (${formatPriceDelta(option.priceDelta)})`
+                                    : "")
+                              )
+                              .join(pick(lang, "، ", ", "))}
+                          </p>
+                        ))}
                       </div>
                     ))}
                     {category.items.length === 0 && (

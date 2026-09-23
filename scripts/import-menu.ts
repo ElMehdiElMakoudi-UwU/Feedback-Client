@@ -4,6 +4,21 @@ import { join } from "path";
 
 const prisma = new PrismaClient();
 
+type OptionGroupInput = {
+  nameAr: string;
+  nameFr: string;
+  required?: boolean;
+  maxSelect?: number;
+  sortOrder: number;
+  options?: {
+    nameAr: string;
+    nameFr: string;
+    priceDelta?: number;
+    available?: boolean;
+    sortOrder: number;
+  }[];
+};
+
 type ItemInput = {
   nameAr: string;
   nameFr: string;
@@ -15,6 +30,7 @@ type ItemInput = {
   priceLarge?: number | null;
   comingSoon?: boolean;
   sortOrder: number;
+  optionGroups?: OptionGroupInput[];
 };
 
 type CategoryInput = {
@@ -73,6 +89,24 @@ async function main() {
             priceLarge: item.priceLarge,
             comingSoon: item.comingSoon ?? false,
             sortOrder: item.sortOrder,
+            optionGroups: {
+              create: (item.optionGroups ?? []).map((group) => ({
+                nameAr: group.nameAr,
+                nameFr: group.nameFr,
+                required: group.required ?? false,
+                maxSelect: group.maxSelect ?? 1,
+                sortOrder: group.sortOrder,
+                options: {
+                  create: (group.options ?? []).map((option) => ({
+                    nameAr: option.nameAr,
+                    nameFr: option.nameFr,
+                    priceDelta: option.priceDelta ?? 0,
+                    available: option.available ?? true,
+                    sortOrder: option.sortOrder,
+                  })),
+                },
+              })),
+            },
           },
         });
       }

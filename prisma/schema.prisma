@@ -44,9 +44,9 @@ model MenuCategory {
 }
 
 model MenuItem {
-  id              String           @id @default(cuid())
+  id              String            @id @default(cuid())
   categoryId      String
-  category        MenuCategory     @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  category        MenuCategory      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   nameAr          String
   nameFr          String
   descriptionAr   String?
@@ -55,18 +55,51 @@ model MenuItem {
   noteFr          String?
   price           Float?
   priceLarge      Float?
-  comingSoon      Boolean          @default(false)
+  comingSoon      Boolean           @default(false)
   photoUrl        String?
-  available       Boolean          @default(true)
-  sortOrder       Int              @default(0)
+  available       Boolean           @default(true)
+  sortOrder       Int               @default(0)
   workstationId   String?
-  workstation     Workstation?     @relation(fields: [workstationId], references: [id], onDelete: SetNull)
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  workstation     Workstation?      @relation(fields: [workstationId], references: [id], onDelete: SetNull)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
   orderItems      OrderItem[]
   itemRatings     ItemRating[]
   recipeItems     RecipeItem[]
   dailySalesItems DailySalesItem[]
+  optionGroups    MenuOptionGroup[]
+}
+
+// A choice attached to a menu item, e.g. "Sauce" (pick 1) or "Suppléments" (pick any).
+model MenuOptionGroup {
+  id         String       @id @default(cuid())
+  menuItemId String
+  menuItem   MenuItem     @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  nameAr     String
+  nameFr     String
+  required   Boolean      @default(false)
+  maxSelect  Int          @default(1) // 1 = single choice, 0 = no limit
+  sortOrder  Int          @default(0)
+  options    MenuOption[]
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  @@index([menuItemId])
+}
+
+model MenuOption {
+  id         String          @id @default(cuid())
+  groupId    String
+  group      MenuOptionGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  nameAr     String
+  nameFr     String
+  priceDelta Float           @default(0)
+  available  Boolean         @default(true)
+  sortOrder  Int             @default(0)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  @@index([groupId])
 }
 
 model Feedback {
@@ -176,6 +209,8 @@ model OrderItem {
   nameAr     String
   nameFr     String
   size       String? // "REGULAR" | "LARGE"
+  optionsAr  String? // snapshot of chosen options, e.g. "Harissa، جبن"
+  optionsFr  String?
   unitPrice  Float
   quantity   Int       @default(1)
   confirmed  Boolean   @default(true)
@@ -307,4 +342,17 @@ model StockCountEntry {
   photoUrl                String? // proof-of-scale photo, saved under /uploads
 
   @@unique([stockCountId, workstationIngredientId])
+}
+
+// Customer "call a waiter" / "bring the bill" requests sent from the table.
+model TableRequest {
+  id            String    @id @default(cuid())
+  tableNumber   String
+  type          String // "WAITER" | "BILL"
+  paymentMethod String? // "CASH" | "CARD" — only for BILL requests
+  status        String    @default("PENDING") // "PENDING" | "DONE"
+  createdAt     DateTime  @default(now())
+  resolvedAt    DateTime?
+
+  @@index([status, tableNumber])
 }

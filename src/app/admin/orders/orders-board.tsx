@@ -10,13 +10,22 @@ import {
   type OrderStatus,
 } from "@/lib/order-status";
 import { isTakeawayTable, isDeliveryTable } from "@/lib/order-mode";
-import type { OrderEvent } from "@/lib/order-events";
+import type { OrderEvent, TableRequestEvent } from "@/lib/order-events";
+import { resolveTableRequest } from "@/app/actions/table-requests";
+import {
+  PAYMENT_METHOD_LABEL,
+  TABLE_REQUEST_LABEL,
+  type PaymentMethod,
+  type TableRequestType,
+} from "@/lib/table-requests";
 
 type OrderLine = {
   id: string;
   nameAr: string;
   nameFr: string;
   size: string | null;
+  optionsAr: string | null;
+  optionsFr: string | null;
   unitPrice: number;
   quantity: number;
   confirmed: boolean;
@@ -34,6 +43,14 @@ type OrderView = {
   createdAt: string;
   items: OrderLine[];
   hasLoyaltyPhone: boolean;
+};
+
+type TableRequestView = {
+  id: string;
+  tableNumber: string;
+  type: TableRequestType;
+  paymentMethod: PaymentMethod | null;
+  createdAt: string;
 };
 
 type OrdersStats = {
@@ -262,7 +279,7 @@ function OrderCard({
 
       <div className="mt-3 flex flex-col gap-1 border-t border-neutral-100 pt-3">
         {order.items.map((item) => (
-          <div key={item.id} className="flex items-center justify-between text-sm">
+          <div key={item.id} className="flex items-start justify-between gap-3 text-sm">
             <span>
               {item.quantity}× {pick(lang, item.nameAr, item.nameFr)}
               {item.size === "LARGE" && (
@@ -271,6 +288,11 @@ function OrderCard({
               {!item.confirmed && (
                 <span className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
                   {pick(lang, "جديد", "Nouveau")}
+                </span>
+              )}
+              {item.optionsFr && (
+                <span className="block pl-5 text-xs text-neutral-500">
+                  {pick(lang, item.optionsAr ?? "", item.optionsFr)}
                 </span>
               )}
             </span>
@@ -360,6 +382,75 @@ function OrderCard({
   );
 }
 
+function TableRequestCard({
+  request,
+  now,
+  highlighted,
+  onShowOrders,
+}: {
+  request: TableRequestView;
+  now: number;
+  highlighted: boolean;
+  onShowOrders: (tableNumber: string) => void;
+}) {
+  const { lang } = useLanguage();
+  const [pending, startTransition] = useTransition();
+  const label = TABLE_REQUEST_LABEL[request.type];
+  const payment = request.paymentMethod
+    ? PAYMENT_METHOD_LABEL[request.paymentMethod]
+    : null;
+  const minutes = waitingMinutes(request.createdAt, now);
+  const urgent = minutes >= WAIT_WARN_MINUTES;
+
+  return (
+    <div
+      className={`flex w-64 shrink-0 flex-col gap-2 rounded-md border bg-white p-3 ${
+        highlighted
+          ? "animate-pulse border-[var(--sindibad-maroon)] ring-2 ring-[var(--sindibad-maroon)]"
+          : "border-neutral-200"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="text-sm font-semibold text-neutral-900">
+            {label.emoji} {pick(lang, "طاولة", "Table")} {request.tableNumber}
+          </p>
+          <p className="text-xs text-neutral-500">
+            {pick(lang, label.ar, label.fr)}
+            {payment && ` · ${payment.emoji} ${pick(lang, payment.ar, payment.fr)}`}
+          </p>
+        </div>
+        <span
+          className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium ${
+            urgent ? "bg-red-100 text-red-700" : "bg-neutral-100 text-neutral-500"
+          }`}
+        >
+          {pick(lang, `${minutes} د`, `${minutes} min`)}
+        </span>
+      </div>
+      <div className="flex gap-2">
+        {request.type === "BILL" && (
+          <button
+            type="button"
+            onClick={() => onShowOrders(request.tableNumber)}
+            className="flex-1 rounded-md border border-neutral-300 px-2 py-1.5 text-xs text-neutral-600 hover:border-neutral-400"
+          >
+            {pick(lang, "عرض الطلبات", "Voir commandes")}
+          </button>
+        )}
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() => startTransition(() => resolveTableRequest(request.id))}
+          className="flex-1 rounded-md bg-neutral-900 px-2 py-1.5 text-xs text-white hover:bg-neutral-700 disabled:opacity-40"
+        >
+          {pick(lang, "✓ تم", "✓ Fait")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 const SOUND_MUTED_KEY = "sindibad-admin-sound-muted";
 
 function playNotificationChime() {
@@ -399,9 +490,11 @@ type Toast = { id: number; text: string };
 
 export function OrdersBoard({
   initialOrders,
+  tableRequests,
   stats,
 }: {
   initialOrders: OrderView[];
+  tableRequests: TableRequestView[];
   stats: OrdersStats;
 }) {
   const { lang } = useLanguage();
@@ -443,19 +536,20 @@ export function OrdersBoard({
     });
   }
 
+  // `highlightId` is an order id or a table request id.
   const notify = useCallback(
-    (text: string, orderId: string) => {
+    (text: string, highlightId: string) => {
       const id = ++toastCounter.current;
       setToasts((prev) => [...prev, { id, text }]);
       setTimeout(() => {
         setToasts((prev) => prev.filter((toast) => toast.id !== id));
       }, 6000);
 
-      setHighlightedOrderIds((prev) => new Set(prev).add(orderId));
+      setHighlightedOrderIds((prev) => new Set(prev).add(highlightId));
       setTimeout(() => {
         setHighlightedOrderIds((prev) => {
           const next = new Set(prev);
-          next.delete(orderId);
+          next.delete(highlightId);
           return next;
         });
       }, 8000);
@@ -485,6 +579,22 @@ export function OrdersBoard({
       }
       router.refresh();
     };
+    source.addEventListener("table-request", (event) => {
+      const payload = JSON.parse((event as MessageEvent).data) as TableRequestEvent;
+      if (payload.status === "PENDING") {
+        const label = TABLE_REQUEST_LABEL[payload.type];
+        const payment = payload.paymentMethod
+          ? PAYMENT_METHOD_LABEL[payload.paymentMethod]
+          : null;
+        const tableLabel = `${pick(lang, "طاولة", "table")} ${payload.tableNumber}`;
+        const paymentText = payment ? ` · ${pick(lang, payment.ar, payment.fr)}` : "";
+        notify(
+          `${label.emoji} ${pick(lang, label.ar, label.fr)} - ${tableLabel}${paymentText}`,
+          payload.requestId
+        );
+      }
+      router.refresh();
+    });
     return () => source.close();
   }, [router, lang, notify]);
 
@@ -565,6 +675,31 @@ export function OrdersBoard({
             : pick(lang, "🔔 الصوت مفعّل", "🔔 Son activé")}
         </button>
       </div>
+
+      {tableRequests.length > 0 && (
+        <section className="mb-6 rounded-lg border border-[var(--sindibad-maroon)]/30 bg-[var(--sindibad-maroon)]/5 p-3">
+          <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-[var(--sindibad-maroon)]">
+            🔔 {pick(lang, "نداءات الطاولات", "Appels des tables")}
+            <span className="rounded-full bg-white px-2 py-0.5 text-xs font-medium">
+              {tableRequests.length}
+            </span>
+          </h2>
+          <div className="flex gap-3 overflow-x-auto pb-1">
+            {tableRequests.map((request) => (
+              <TableRequestCard
+                key={request.id}
+                request={request}
+                now={now}
+                highlighted={highlightedOrderIds.has(request.id)}
+                onShowOrders={(tableNumber) => {
+                  setModeFilter("TABLE");
+                  setSearch(tableNumber);
+                }}
+              />
+            ))}
+          </div>
+        </section>
+      )}
 
       <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
         <KpiCard

@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { requireStaff } from "@/lib/require-admin";
 import { emitOrderEvent } from "@/lib/order-events";
 import { sendOrderPushNotification } from "@/lib/push";
+import { resolveOptions } from "@/lib/menu-options";
 import {
   nextOrderStatus,
   canAddItemsToOrder,
@@ -45,6 +46,7 @@ const placeOrderSchema = z.object({
       z.object({
         menuItemId: z.string().min(1),
         size: z.enum(["REGULAR", "LARGE"]).optional(),
+        optionIds: z.array(z.string().min(1)).max(30).optional(),
         quantity: z.coerce.number().int().min(1).max(50),
       })
     )
@@ -65,6 +67,7 @@ const addOrderItemsSchema = z.object({
       z.object({
         menuItemId: z.string().min(1),
         size: z.enum(["REGULAR", "LARGE"]).optional(),
+        optionIds: z.array(z.string().min(1)).max(30).optional(),
         quantity: z.coerce.number().int().min(1).max(50),
       })
     )
@@ -77,6 +80,79 @@ export type AddOrderItemsState =
   | { status: "idle" }
   | { status: "error"; message: string };
 
+
+type RequestedItem = PlaceOrderInput["items"][number];
+
+type LineItem = {
+  menuItemId: string;
+  nameAr: string;
+  nameFr: string;
+  size: string | null;
+  optionsAr: string | null;
+  optionsFr: string | null;
+  unitPrice: number;
+  quantity: number;
+};
+
+// Prices always come from the database, never from the client.
+async function buildLineItems(
+  items: RequestedItem[]
+): Promise<{ ok: true; lineItems: LineItem[] } | { ok: false; message: string }> {
+  const menuItems = await prisma.menuItem.findMany({
+    where: { id: { in: items.map((item) => item.menuItemId) }, available: true },
+    include: {
+      optionGroups: {
+        orderBy: { sortOrder: "asc" },
+        include: {
+          options: { where: { available: true }, orderBy: { sortOrder: "asc" } },
+        },
+      },
+    },
+  });
+  const menuItemById = new Map(menuItems.map((item) => [item.id, item]));
+
+  const lineItems: LineItem[] = [];
+  for (const item of items) {
+    const menuItem = menuItemById.get(item.menuItemId);
+    if (!menuItem) {
+      return { ok: false, message: "One of the items is no longer available" };
+    }
+
+    const basePrice =
+      item.size === "LARGE" ? menuItem.priceLarge : menuItem.price;
+    if (basePrice == null) {
+      return { ok: false, message: "One of the items has no price set" };
+    }
+
+    // A group whose options are all switched off is skipped, same as on the menu.
+    const options = resolveOptions(
+      menuItem.optionGroups.filter((group) => group.options.length > 0),
+      item.optionIds ?? []
+    );
+    if (!options.ok) {
+      return {
+        ok: false,
+        message:
+          options.reason === "unknown"
+            ? "One of the chosen options is no longer available"
+            : "Please review the options for " + menuItem.nameFr,
+      };
+    }
+
+    lineItems.push({
+      menuItemId: menuItem.id,
+      nameAr: menuItem.nameAr,
+      nameFr: menuItem.nameFr,
+      size: item.size ?? null,
+      optionsAr: options.labelAr,
+      optionsFr: options.labelFr,
+      unitPrice: Math.max(0, basePrice + options.priceDelta),
+      quantity: item.quantity,
+    });
+  }
+
+  return { ok: true, lineItems };
+}
 
 export async function placeOrder(
   input: PlaceOrderInput
@@ -91,41 +167,9 @@ export async function placeOrder(
 
   const { tableNumber, guestName, phone, address, note, items } = parsed.data;
 
-  const menuItems = await prisma.menuItem.findMany({
-    where: { id: { in: items.map((item) => item.menuItemId) }, available: true },
-  });
-  const menuItemById = new Map(menuItems.map((item) => [item.id, item]));
-
-  const lineItems: {
-    menuItemId: string;
-    nameAr: string;
-    nameFr: string;
-    size: string | null;
-    unitPrice: number;
-    quantity: number;
-  }[] = [];
-
-  for (const item of items) {
-    const menuItem = menuItemById.get(item.menuItemId);
-    if (!menuItem) {
-      return { status: "error", message: "One of the items is no longer available" };
-    }
-
-    const unitPrice =
-      item.size === "LARGE" ? menuItem.priceLarge : menuItem.price;
-    if (unitPrice == null) {
-      return { status: "error", message: "One of the items has no price set" };
-    }
-
-    lineItems.push({
-      menuItemId: menuItem.id,
-      nameAr: menuItem.nameAr,
-      nameFr: menuItem.nameFr,
-      size: item.size ?? null,
-      unitPrice,
-      quantity: item.quantity,
-    });
-  }
+  const built = await buildLineItems(items);
+  if (!built.ok) return { status: "error", message: built.message };
+  const lineItems = built.lineItems;
 
   const total = lineItems.reduce(
     (sum, item) => sum + item.unitPrice * item.quantity,
@@ -191,41 +235,9 @@ export async function addItemsToOrder(
     };
   }
 
-  const menuItems = await prisma.menuItem.findMany({
-    where: { id: { in: items.map((item) => item.menuItemId) }, available: true },
-  });
-  const menuItemById = new Map(menuItems.map((item) => [item.id, item]));
-
-  const lineItems: {
-    menuItemId: string;
-    nameAr: string;
-    nameFr: string;
-    size: string | null;
-    unitPrice: number;
-    quantity: number;
-  }[] = [];
-
-  for (const item of items) {
-    const menuItem = menuItemById.get(item.menuItemId);
-    if (!menuItem) {
-      return { status: "error", message: "One of the items is no longer available" };
-    }
-
-    const unitPrice =
-      item.size === "LARGE" ? menuItem.priceLarge : menuItem.price;
-    if (unitPrice == null) {
-      return { status: "error", message: "One of the items has no price set" };
-    }
-
-    lineItems.push({
-      menuItemId: menuItem.id,
-      nameAr: menuItem.nameAr,
-      nameFr: menuItem.nameFr,
-      size: item.size ?? null,
-      unitPrice,
-      quantity: item.quantity,
-    });
-  }
+  const built = await buildLineItems(items);
+  if (!built.ok) return { status: "error", message: built.message };
+  const lineItems = built.lineItems;
 
   const addedTotal = lineItems.reduce(
     (sum, item) => sum + item.unitPrice * item.quantity,

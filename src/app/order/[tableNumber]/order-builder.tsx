@@ -2,12 +2,13 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useLanguage, pick } from "@/lib/language-context";
 import { LanguageToggle } from "@/components/language-toggle";
 import { placeOrder, addItemsToOrder } from "@/app/actions/orders";
 import { isTakeawayTable, isDeliveryTable } from "@/lib/order-mode";
 import type { MenuSectionView, MenuItemView } from "@/app/menu/types";
+import { resolveOptions, formatPriceDelta } from "@/lib/menu-options";
 
 type Size = "REGULAR" | "LARGE";
 
@@ -16,12 +17,171 @@ type CartLine = {
   nameAr: string;
   nameFr: string;
   size: Size | null;
+  optionIds: string[];
+  optionsAr: string | null;
+  optionsFr: string | null;
   unitPrice: number;
   quantity: number;
 };
 
-function cartKey(menuItemId: string, size: Size | null) {
-  return `${menuItemId}:${size ?? "REGULAR"}`;
+type PendingAdd = { item: MenuItemView; size: Size | null; basePrice: number };
+
+function cartKey(menuItemId: string, size: Size | null, optionIds: string[]) {
+  return `${menuItemId}:${size ?? "REGULAR"}:${[...optionIds].sort().join(",")}`;
+}
+
+function OptionPicker({
+  pendingAdd,
+  lang,
+  onCancel,
+  onConfirm,
+}: {
+  pendingAdd: PendingAdd;
+  lang: "ar" | "fr";
+  onCancel: () => void;
+  onConfirm: (optionIds: string[]) => void;
+}) {
+  const { item, size, basePrice } = pendingAdd;
+  const groups = item.optionGroups;
+  const [selected, setSelected] = useState<string[]>(() =>
+    // Pre-select the first choice of required single-choice groups.
+    groups
+      .filter((g) => g.required && g.maxSelect === 1)
+      .map((g) => g.options[0].id)
+  );
+  const [showErrors, setShowErrors] = useState(false);
+
+  const resolved = resolveOptions(groups, selected);
+  const unitPrice = basePrice + (resolved.ok ? resolved.priceDelta : 0);
+
+  function toggle(groupId: string, optionId: string) {
+    const group = groups.find((g) => g.id === groupId)!;
+    const groupOptionIds = new Set(group.options.map((o) => o.id));
+    setSelected((prev) => {
+      if (group.maxSelect === 1) {
+        const others = prev.filter((id) => !groupOptionIds.has(id));
+        return prev.includes(optionId) && !group.required
+          ? others
+          : [...others, optionId];
+      }
+      if (prev.includes(optionId)) return prev.filter((id) => id !== optionId);
+      const inGroup = prev.filter((id) => groupOptionIds.has(id)).length;
+      if (group.maxSelect > 0 && inGroup >= group.maxSelect) return prev;
+      return [...prev, optionId];
+    });
+  }
+
+  function confirm() {
+    if (!resolved.ok) {
+      setShowErrors(true);
+      return;
+    }
+    onConfirm(resolved.optionIds);
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-30 flex items-end justify-center bg-black/40 sm:items-center"
+      onClick={onCancel}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        onClick={(e) => e.stopPropagation()}
+        className="flex max-h-[85vh] w-full max-w-md flex-col rounded-t-xl bg-[var(--sindibad-cream)] sm:rounded-xl"
+      >
+        <div className="border-b border-[var(--sindibad-line)] px-5 py-4">
+          <h3 className="font-display text-lg text-[var(--sindibad-ink)]">
+            {pick(lang, item.nameAr, item.nameFr)}
+            {size === "LARGE" && (
+              <span className="ml-1 text-sm text-[var(--sindibad-muted)]">(L)</span>
+            )}
+          </h3>
+        </div>
+
+        <div className="flex flex-col gap-5 overflow-y-auto px-5 py-4">
+          {groups.map((group) => {
+            const count = group.options.filter((o) => selected.includes(o.id)).length;
+            const invalid =
+              showErrors && !resolved.ok && resolved.groupId === group.id;
+            return (
+              <fieldset key={group.id}>
+                <legend className="mb-2 flex w-full items-baseline justify-between gap-2">
+                  <span className="text-sm font-medium text-[var(--sindibad-ink)]">
+                    {pick(lang, group.nameAr, group.nameFr)}
+                  </span>
+                  <span
+                    className={`text-xs ${invalid ? "text-red-700" : "text-[var(--sindibad-muted)]"}`}
+                  >
+                    {group.required
+                      ? pick(lang, "إجباري", "Obligatoire")
+                      : pick(lang, "اختياري", "Optionnel")}
+                    {group.maxSelect > 1 &&
+                      ` · ${count}/${group.maxSelect}`}
+                  </span>
+                </legend>
+                <div className="flex flex-col gap-1.5">
+                  {group.options.map((option) => {
+                    const checked = selected.includes(option.id);
+                    return (
+                      <label
+                        key={option.id}
+                        className={`flex cursor-pointer items-center justify-between gap-3 rounded-md border px-3 py-2.5 text-sm transition ${
+                          checked
+                            ? "border-[var(--sindibad-maroon)] bg-[var(--sindibad-paper)]"
+                            : "border-[var(--sindibad-line)]"
+                        }`}
+                      >
+                        <span className="flex items-center gap-2.5">
+                          <input
+                            type={group.maxSelect === 1 ? "radio" : "checkbox"}
+                            name={group.id}
+                            checked={checked}
+                            onChange={() => toggle(group.id, option.id)}
+                            onClick={() => {
+                              // Radios don't fire onChange when re-clicked; allow
+                              // un-selecting an optional single choice.
+                              if (group.maxSelect === 1 && checked && !group.required) {
+                                toggle(group.id, option.id);
+                              }
+                            }}
+                            className="accent-[var(--sindibad-maroon)]"
+                          />
+                          {pick(lang, option.nameAr, option.nameFr)}
+                        </span>
+                        {option.priceDelta !== 0 && (
+                          <span className="whitespace-nowrap text-xs text-[var(--sindibad-muted)]">
+                            {formatPriceDelta(option.priceDelta)} {pick(lang, "درهم", "DH")}
+                          </span>
+                        )}
+                      </label>
+                    );
+                  })}
+                </div>
+              </fieldset>
+            );
+          })}
+        </div>
+
+        <div className="flex items-center gap-3 border-t border-[var(--sindibad-line)] px-5 py-4">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-md border border-[var(--sindibad-line)] px-4 py-3 text-sm text-[var(--sindibad-muted)]"
+          >
+            {pick(lang, "إلغاء", "Annuler")}
+          </button>
+          <button
+            type="button"
+            onClick={confirm}
+            className="font-display flex-1 rounded-md bg-[var(--sindibad-ink)] px-4 py-3 text-sm tracking-wide text-[var(--sindibad-cream)] transition hover:bg-[var(--sindibad-maroon)]"
+          >
+            {pick(lang, "إضافة", "Ajouter")} · {unitPrice} {pick(lang, "درهم", "DH")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function ItemRow({
@@ -133,6 +293,36 @@ export function OrderBuilder({
   const [pending, startTransition] = useTransition();
   const [query, setQuery] = useState("");
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
+  const [pendingAdd, setPendingAdd] = useState<PendingAdd | null>(null);
+  const cartRef = useRef<HTMLDivElement>(null);
+  const dragStartY = useRef<number | null>(null);
+
+  // Roll the cart down as soon as the guest scrolls the menu, so it never
+  // hides the dishes they're browsing. Skip while typing in the cart: the
+  // mobile keyboard scrolls the page to reveal the focused field.
+  useEffect(() => {
+    if (!cartOpen) return;
+    const openedAt = window.scrollY;
+    function onScroll() {
+      if (cartRef.current?.contains(document.activeElement)) return;
+      if (Math.abs(window.scrollY - openedAt) > 48) setCartOpen(false);
+    }
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [cartOpen]);
+
+  function onDragStart(e: React.TouchEvent) {
+    dragStartY.current = e.touches[0].clientY;
+  }
+
+  function onDragEnd(e: React.TouchEvent) {
+    const start = dragStartY.current;
+    dragStartY.current = null;
+    if (start === null) return;
+    const dy = e.changedTouches[0].clientY - start;
+    if (dy > 40) setCartOpen(false);
+    else if (dy < -40) setCartOpen(true);
+  }
 
   const lines = useMemo(() => Object.values(cart), [cart]);
   const itemCount = lines.reduce((sum, line) => sum + line.quantity, 0);
@@ -184,8 +374,23 @@ export function OrderBuilder({
       .filter((section) => section.categories.length > 0);
   }, [sections, normalizedQuery, activeCategoryId]);
 
-  function addToCart(item: MenuItemView, size: Size | null, unitPrice: number) {
-    const key = cartKey(item.id, size);
+  function requestAdd(item: MenuItemView, size: Size | null, basePrice: number) {
+    if (item.optionGroups.length > 0) {
+      setPendingAdd({ item, size, basePrice });
+    } else {
+      addToCart(item, size, basePrice, []);
+    }
+  }
+
+  function addToCart(
+    item: MenuItemView,
+    size: Size | null,
+    basePrice: number,
+    optionIds: string[]
+  ) {
+    const resolved = resolveOptions(item.optionGroups, optionIds);
+    if (!resolved.ok) return;
+    const key = cartKey(item.id, size, resolved.optionIds);
     setCart((prev) => {
       const existing = prev[key];
       return {
@@ -197,7 +402,10 @@ export function OrderBuilder({
               nameAr: item.nameAr,
               nameFr: item.nameFr,
               size,
-              unitPrice,
+              optionIds: resolved.optionIds,
+              optionsAr: resolved.labelAr,
+              optionsFr: resolved.labelFr,
+              unitPrice: basePrice + resolved.priceDelta,
               quantity: 1,
             },
       };
@@ -225,6 +433,7 @@ export function OrderBuilder({
       const cartItems = lines.map((line) => ({
         menuItemId: line.menuItemId,
         size: line.size ?? undefined,
+        optionIds: line.optionIds,
         quantity: line.quantity,
       }));
       const result = addToOrderId
@@ -348,7 +557,7 @@ export function OrderBuilder({
                         key={item.id}
                         item={item}
                         lang={lang}
-                        onAdd={(size, unitPrice) => addToCart(item, size, unitPrice)}
+                        onAdd={(size, unitPrice) => requestAdd(item, size, unitPrice)}
                       />
                     ))}
                   </div>
@@ -360,12 +569,39 @@ export function OrderBuilder({
       </div>
 
       {itemCount > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-[var(--sindibad-line)] bg-[var(--sindibad-cream)]/95 backdrop-blur">
-          {cartOpen && (
-            <div className="mx-auto max-h-[60vh] max-w-2xl overflow-y-auto px-5 pt-4">
+        <div
+          ref={cartRef}
+          className={`fixed inset-x-0 bottom-0 z-20 rounded-t-2xl border-t border-[var(--sindibad-line)] bg-[var(--sindibad-cream)]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur transition-shadow duration-300 ${
+            cartOpen ? "shadow-[0_-12px_32px_rgba(0,0,0,0.12)]" : "shadow-none"
+          }`}
+        >
+          <button
+            type="button"
+            aria-label={
+              cartOpen
+                ? pick(lang, "إخفاء السلة", "Masquer le panier")
+                : pick(lang, "عرض السلة", "Afficher le panier")
+            }
+            aria-expanded={cartOpen}
+            onClick={() => setCartOpen((v) => !v)}
+            onTouchStart={onDragStart}
+            onTouchEnd={onDragEnd}
+            className="flex w-full touch-none justify-center pt-2 pb-1"
+          >
+            <span className="h-1 w-10 rounded-full bg-[var(--sindibad-line)]" />
+          </button>
+
+          <div
+            inert={!cartOpen}
+            className={`grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none ${
+              cartOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+            }`}
+          >
+            <div className="min-h-0 overflow-hidden">
+            <div className="mx-auto max-h-[55vh] max-w-2xl overflow-y-auto overscroll-contain px-5 pt-2">
               <div className="flex flex-col divide-y divide-[var(--sindibad-line)]">
                 {lines.map((line) => {
-                  const key = cartKey(line.menuItemId, line.size);
+                  const key = cartKey(line.menuItemId, line.size, line.optionIds);
                   return (
                     <div
                       key={key}
@@ -380,6 +616,11 @@ export function OrderBuilder({
                             </span>
                           )}
                         </p>
+                        {line.optionsFr && (
+                          <p className="text-xs text-[var(--sindibad-muted)]">
+                            {pick(lang, line.optionsAr ?? "", line.optionsFr)}
+                          </p>
+                        )}
                         <p className="text-xs text-[var(--sindibad-muted)]">
                           {line.unitPrice} {pick(lang, "درهم", "DH")}
                         </p>
@@ -425,18 +666,49 @@ export function OrderBuilder({
                 </div>
               )}
 
-              {error && <p className="pb-3 text-sm text-red-700">{error}</p>}
             </div>
+            </div>
+          </div>
+
+          {error && (
+            <p className="mx-auto max-w-2xl px-5 pt-2 text-sm text-red-700">
+              {error}
+            </p>
           )}
 
-          <div className="mx-auto flex max-w-2xl items-center justify-between gap-4 px-5 py-4">
+          <div
+            onTouchStart={onDragStart}
+            onTouchEnd={onDragEnd}
+            className="mx-auto flex max-w-2xl items-center justify-between gap-4 px-5 pt-2 pb-4"
+          >
             <button
               type="button"
+              aria-expanded={cartOpen}
               onClick={() => setCartOpen((v) => !v)}
-              className="text-sm text-[var(--sindibad-muted)] underline underline-offset-4"
+              className="flex items-center gap-2 text-sm text-[var(--sindibad-muted)]"
             >
-              {itemCount} {pick(lang, "منتج", "articles")} · {total}{" "}
-              {pick(lang, "درهم", "DH")}
+              <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-[var(--sindibad-maroon)] px-1.5 text-xs text-[var(--sindibad-cream)]">
+                {itemCount}
+              </span>
+              <span className="text-[var(--sindibad-ink)]">
+                {total} {pick(lang, "درهم", "DH")}
+              </span>
+              <svg
+                aria-hidden
+                viewBox="0 0 20 20"
+                className={`h-4 w-4 transition-transform duration-300 ${
+                  cartOpen ? "rotate-180" : ""
+                }`}
+              >
+                <path
+                  d="M5 12l5-5 5 5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
             </button>
             <button
               type="button"
@@ -452,6 +724,19 @@ export function OrderBuilder({
             </button>
           </div>
         </div>
+      )}
+
+      {pendingAdd && (
+        <OptionPicker
+          key={`${pendingAdd.item.id}:${pendingAdd.size}`}
+          pendingAdd={pendingAdd}
+          lang={lang}
+          onCancel={() => setPendingAdd(null)}
+          onConfirm={(optionIds) => {
+            addToCart(pendingAdd.item, pendingAdd.size, pendingAdd.basePrice, optionIds);
+            setPendingAdd(null);
+          }}
+        />
       )}
     </main>
   );

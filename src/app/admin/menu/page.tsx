@@ -12,7 +12,17 @@ export default async function AdminMenuPage() {
     include: {
       categories: {
         orderBy: { sortOrder: "asc" },
-        include: { items: { orderBy: { sortOrder: "asc" } } },
+        include: {
+          items: {
+            orderBy: { sortOrder: "asc" },
+            include: {
+              optionGroups: {
+                orderBy: { sortOrder: "asc" },
+                include: { options: { orderBy: { sortOrder: "asc" } } },
+              },
+            },
+          },
+        },
       },
     },
   });

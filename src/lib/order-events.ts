@@ -1,5 +1,10 @@
 import { EventEmitter } from "events";
 import type { OrderStatus } from "@/lib/order-status";
+import type {
+  PaymentMethod,
+  TableRequestStatus,
+  TableRequestType,
+} from "@/lib/table-requests";
 
 export type OrderEventKind =
   | "created"
@@ -14,11 +19,20 @@ export type OrderEvent = {
   kind: OrderEventKind;
 };
 
+export type TableRequestEvent = {
+  requestId: string;
+  tableNumber: string;
+  type: TableRequestType;
+  paymentMethod: PaymentMethod | null;
+  status: TableRequestStatus;
+};
+
 const globalForOrderEvents = globalThis as unknown as {
   orderEvents: EventEmitter | undefined;
 };
 
 const EVENT_NAME = "order";
+const TABLE_REQUEST_EVENT_NAME = "table-request";
 
 export const orderEvents =
   globalForOrderEvents.orderEvents ?? new EventEmitter().setMaxListeners(0);
@@ -39,4 +53,15 @@ export function emitOrderEvent(event: OrderEvent) {
 export function subscribeToOrderEvents(handler: (event: OrderEvent) => void) {
   orderEvents.on(EVENT_NAME, handler);
   return () => orderEvents.off(EVENT_NAME, handler);
+}
+
+export function emitTableRequestEvent(event: TableRequestEvent) {
+  orderEvents.emit(TABLE_REQUEST_EVENT_NAME, event);
+}
+
+export function subscribeToTableRequestEvents(
+  handler: (event: TableRequestEvent) => void
+) {
+  orderEvents.on(TABLE_REQUEST_EVENT_NAME, handler);
+  return () => orderEvents.off(TABLE_REQUEST_EVENT_NAME, handler);
 }

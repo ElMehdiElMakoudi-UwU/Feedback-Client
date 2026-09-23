@@ -13,12 +13,16 @@ import {
 } from "@/lib/order-status";
 import { isTakeawayTable, isDeliveryTable } from "@/lib/order-mode";
 import { subscribeToOrderPush } from "@/app/actions/orders";
+import { TableServiceButtons } from "@/components/table-service-buttons";
+import type { PendingTableRequest } from "@/lib/table-requests";
 
 type OrderLine = {
   id: string;
   nameAr: string;
   nameFr: string;
   size: string | null;
+  optionsAr: string | null;
+  optionsFr: string | null;
   unitPrice: number;
   quantity: number;
 };
@@ -66,6 +70,7 @@ export function OrderStatusTracker({
   total,
   initialStatus,
   customerPhone,
+  pendingTableRequests,
   items,
 }: {
   tableNumber: string;
@@ -75,6 +80,7 @@ export function OrderStatusTracker({
   total: number;
   initialStatus: OrderStatus;
   customerPhone: string | null;
+  pendingTableRequests: PendingTableRequest[];
   items: OrderLine[];
 }) {
   const { lang } = useLanguage();
@@ -84,30 +90,30 @@ export function OrderStatusTracker({
   const [showToast, setShowToast] = useState(false);
   const [pushState, setPushState] = useState<
     "unsupported" | "unsubscribed" | "subscribing" | "subscribed" | "denied"
-  >(() => {
-    if (
-      typeof window === "undefined" ||
-      !("serviceWorker" in navigator) ||
-      !("PushManager" in window)
-    ) {
-      return "unsupported";
-    }
-    if (Notification.permission === "denied") return "denied";
-    return "unsubscribed";
-  });
+  // Push support can only be detected in the browser; start from the same
+  // value the server renders and resolve it after mount to avoid a hydration
+  // mismatch.
+  >("unsupported");
   const previousStatus = useRef<OrderStatus>(initialStatus);
 
   useEffect(() => {
-    if (pushState === "unsupported" || pushState === "denied") return;
+    // "denied" renders the same as the initial "unsupported", so leave it be.
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+    if (Notification.permission === "denied") return;
 
+    let cancelled = false;
     navigator.serviceWorker
       .register("/sw.js")
       .then((registration) => registration.pushManager.getSubscription())
       .then((subscription) => {
-        if (subscription) setPushState("subscribed");
+        if (!cancelled) setPushState(subscription ? "subscribed" : "unsubscribed");
       })
-      .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+      .catch(() => {
+        if (!cancelled) setPushState("unsubscribed");
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function enablePushNotifications() {
@@ -270,6 +276,15 @@ export function OrderStatusTracker({
         </p>
       )}
 
+      {!isTakeaway && !isDelivery && !isCancelled && (
+        <div className="mb-6">
+          <TableServiceButtons
+            tableNumber={tableNumber}
+            initialPending={pendingTableRequests}
+          />
+        </div>
+      )}
+
       <div className="rounded-md border border-[var(--sindibad-line)] p-5">
         <div className="flex flex-col divide-y divide-[var(--sindibad-line)]">
           {items.map((item) => (
@@ -284,6 +299,11 @@ export function OrderStatusTracker({
                     ×{item.quantity}
                   </span>
                 </p>
+                {item.optionsFr && (
+                  <p className="text-xs text-[var(--sindibad-muted)]">
+                    {pick(lang, item.optionsAr ?? "", item.optionsFr)}
+                  </p>
+                )}
               </div>
               <p className="text-sm text-[var(--sindibad-ink)]">
                 {item.unitPrice * item.quantity} {pick(lang, "درهم", "DH")}

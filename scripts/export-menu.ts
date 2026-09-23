@@ -10,7 +10,15 @@ async function main() {
       categories: {
         orderBy: { sortOrder: "asc" },
         include: {
-          items: { orderBy: { sortOrder: "asc" } },
+          items: {
+            orderBy: { sortOrder: "asc" },
+            include: {
+              optionGroups: {
+                orderBy: { sortOrder: "asc" },
+                include: { options: { orderBy: { sortOrder: "asc" } } },
+              },
+            },
+          },
         },
       },
     },

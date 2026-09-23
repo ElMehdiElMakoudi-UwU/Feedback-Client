@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import type { OrderStatus } from "@/lib/order-status";
+import { isDeliveryTable, isTakeawayTable } from "@/lib/order-mode";
+import { getPendingTableRequests } from "@/lib/table-requests-server";
 import { OrderStatusTracker } from "./order-status-tracker";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +21,12 @@ export default async function OrderConfirmationPage({
 
   if (!order || order.tableNumber !== tableNumber) notFound();
 
+  const isDineIn =
+    !isTakeawayTable(order.tableNumber) && !isDeliveryTable(order.tableNumber);
+  const pendingTableRequests = isDineIn
+    ? await getPendingTableRequests(order.tableNumber)
+    : [];
+
   return (
     <OrderStatusTracker
       tableNumber={order.tableNumber}
@@ -28,11 +36,14 @@ export default async function OrderConfirmationPage({
       total={order.total}
       initialStatus={order.status as OrderStatus}
       customerPhone={order.customer?.phone ?? null}
+      pendingTableRequests={pendingTableRequests}
       items={order.items.map((item) => ({
         id: item.id,
         nameAr: item.nameAr,
         nameFr: item.nameFr,
         size: item.size,
+        optionsAr: item.optionsAr,
+        optionsFr: item.optionsFr,
         unitPrice: item.unitPrice,
         quantity: item.quantity,
       }))}

@@ -1,6 +1,7 @@
 import { requireStaff } from "@/lib/require-admin";
 import { prisma } from "@/lib/prisma";
 import type { OrderStatus } from "@/lib/order-status";
+import type { PaymentMethod, TableRequestType } from "@/lib/table-requests";
 import { OrdersBoard } from "./orders-board";
 
 export const dynamic = "force-dynamic";
@@ -13,8 +14,13 @@ export default async function AdminOrdersPage() {
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
 
-  const [activeOrders, recentCompletedOrders, completedTodayAgg, cancelledTodayCount] =
-    await Promise.all([
+  const [
+    activeOrders,
+    recentCompletedOrders,
+    completedTodayAgg,
+    cancelledTodayCount,
+    pendingTableRequests,
+  ] = await Promise.all([
       prisma.order.findMany({
         where: { status: { notIn: ["COMPLETED", "CANCELLED"] } },
         orderBy: [{ tableNumber: "asc" }, { createdAt: "asc" }],
@@ -34,6 +40,10 @@ export default async function AdminOrdersPage() {
       prisma.order.count({
         where: { status: "CANCELLED", createdAt: { gte: todayStart } },
       }),
+      prisma.tableRequest.findMany({
+        where: { status: "PENDING" },
+        orderBy: { createdAt: "asc" },
+      }),
     ]);
 
   const orders = [...activeOrders, ...recentCompletedOrders];
@@ -45,6 +55,13 @@ export default async function AdminOrdersPage() {
         completedToday: completedTodayAgg._count,
         cancelledToday: cancelledTodayCount,
       }}
+      tableRequests={pendingTableRequests.map((request) => ({
+        id: request.id,
+        tableNumber: request.tableNumber,
+        type: request.type as TableRequestType,
+        paymentMethod: request.paymentMethod as PaymentMethod | null,
+        createdAt: request.createdAt.toISOString(),
+      }))}
       initialOrders={orders.map((order) => ({
         id: order.id,
         tableNumber: order.tableNumber,
@@ -61,6 +78,8 @@ export default async function AdminOrdersPage() {
           nameAr: item.nameAr,
           nameFr: item.nameFr,
           size: item.size,
+        optionsAr: item.optionsAr,
+        optionsFr: item.optionsFr,
           unitPrice: item.unitPrice,
           quantity: item.quantity,
           confirmed: item.confirmed,

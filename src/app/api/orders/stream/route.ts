@@ -1,13 +1,21 @@
 import { getStaffSession } from "@/lib/require-admin";
-import { subscribeToOrderEvents, type OrderEvent } from "@/lib/order-events";
+import {
+  subscribeToOrderEvents,
+  subscribeToTableRequestEvents,
+  type OrderEvent,
+  type TableRequestEvent,
+} from "@/lib/order-events";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const orderId = searchParams.get("orderId");
+  const tableRequestId = searchParams.get("tableRequestId");
 
-  if (!orderId) {
+  // Customers may follow their own order or table request; the unfiltered
+  // stream (every order and table call) is staff-only.
+  if (!orderId && !tableRequestId) {
     const staff = await getStaffSession();
     if (!staff) return new Response("Unauthorized", { status: 401 });
   }
@@ -17,13 +25,28 @@ export async function GET(request: Request) {
   const stream = new ReadableStream({
     start(controller) {
       const send = (event: OrderEvent) => {
+        if (tableRequestId) return;
         if (orderId && event.orderId !== orderId) return;
         controller.enqueue(
           encoder.encode(`data: ${JSON.stringify(event)}\n\n`)
         );
       };
 
-      const unsubscribe = subscribeToOrderEvents(send);
+      // Sent as a named SSE event so existing `onmessage` listeners, which
+      // expect an OrderEvent payload, never see it.
+      const sendTableRequest = (event: TableRequestEvent) => {
+        if (orderId) return;
+        if (tableRequestId && event.requestId !== tableRequestId) return;
+        controller.enqueue(
+          encoder.encode(
+            `event: table-request\ndata: ${JSON.stringify(event)}\n\n`
+          )
+        );
+      };
+
+      const unsubscribeOrders = subscribeToOrderEvents(send);
+      const unsubscribeTableRequests =
+        subscribeToTableRequestEvents(sendTableRequest);
 
       // Reverse proxies (nginx, etc.) idle-timeout a connection with no
       // traffic, silently killing the stream without the client noticing.
@@ -34,7 +57,8 @@ export async function GET(request: Request) {
 
       request.signal.addEventListener("abort", () => {
         clearInterval(heartbeat);
-        unsubscribe();
+        unsubscribeOrders();
+        unsubscribeTableRequests();
         controller.close();
       });
     },

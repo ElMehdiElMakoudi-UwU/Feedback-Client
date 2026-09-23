@@ -1,54 +1,403 @@
 "use client";
 
+import { useState, type ReactNode } from "react";
 import { useLanguage, pick } from "@/lib/language-context";
 import {
   createSection,
+  updateSection,
   deleteSection,
+  moveSection,
   createCategory,
+  updateCategory,
   deleteCategory,
+  moveCategory,
   createItem,
+  updateItem,
+  duplicateItem,
   deleteItem,
+  moveItem,
   toggleItemAvailability,
-  updateItemPhoto,
 } from "@/app/actions/menu";
 import { KpiCard } from "@/app/admin/kpi-card";
 import { IconClipboard, IconGrid, IconCheckCircle, IconAlertTriangle } from "@/app/admin/stock/icons";
+import {
+  DeleteButton,
+  MoveButtons,
+  inputClass,
+  linkButtonClass,
+  primaryButtonClass,
+} from "./controls";
+import { ItemForm } from "./item-form";
+import { OptionGroupsEditor } from "./option-groups-editor";
+import type {
+  AdminMenuSection,
+  AdminMenuCategory,
+  AdminMenuItem,
+  CategoryChoice,
+} from "./types";
 
-type MenuItem = {
+function priceLabel(lang: "ar" | "fr", item: AdminMenuItem) {
+  if (item.comingSoon) return pick(lang, "(قريباً)", "(bientôt)");
+  if (item.priceLarge != null) return `${item.price ?? "–"} / ${item.priceLarge}`;
+  if (item.price != null) return pick(lang, `${item.price} درهم`, `${item.price} DH`);
+  return "";
+}
+
+function RenameForm({
+  action,
+  id,
+  nameFr,
+  nameAr,
+  extra,
+  onDone,
+}: {
+  action: (formData: FormData) => void | Promise<void>;
   id: string;
   nameFr: string;
   nameAr: string;
-  descriptionFr: string | null;
-  descriptionAr: string | null;
-  noteFr: string | null;
-  noteAr: string | null;
-  price: number | null;
-  priceLarge: number | null;
-  comingSoon: boolean;
-  available: boolean;
-  photoUrl: string | null;
-};
+  extra?: ReactNode;
+  onDone: () => void;
+}) {
+  const { lang } = useLanguage();
+  return (
+    <form
+      action={async (formData) => {
+        await action(formData);
+        onDone();
+      }}
+      className="flex flex-1 flex-wrap items-center gap-2"
+    >
+      <input type="hidden" name="id" value={id} />
+      <input name="nameFr" defaultValue={nameFr} required className={`${inputClass} flex-1`} />
+      <input
+        name="nameAr"
+        defaultValue={nameAr}
+        required
+        dir="rtl"
+        className={`${inputClass} flex-1`}
+      />
+      {extra}
+      <button type="submit" className={primaryButtonClass}>
+        {pick(lang, "حفظ", "Enregistrer")}
+      </button>
+      <button type="button" onClick={onDone} className={linkButtonClass}>
+        {pick(lang, "إلغاء", "Annuler")}
+      </button>
+    </form>
+  );
+}
 
-type MenuCategory = {
-  id: string;
-  nameFr: string;
-  nameAr: string;
-  items: MenuItem[];
-};
+function ItemRow({
+  item,
+  isFirst,
+  isLast,
+  categoryChoices,
+}: {
+  item: AdminMenuItem;
+  isFirst: boolean;
+  isLast: boolean;
+  categoryChoices: CategoryChoice[];
+}) {
+  const { lang } = useLanguage();
+  const [open, setOpen] = useState(false);
+  const optionCount = item.optionGroups.length;
 
-type MenuSection = {
-  id: string;
-  nameFr: string;
-  nameAr: string;
-  categories: MenuCategory[];
-};
+  return (
+    <div className="py-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className={`flex min-w-0 items-center gap-3 ${!item.available ? "opacity-40" : ""}`}>
+          {item.photoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={item.photoUrl} alt="" className="h-10 w-10 shrink-0 rounded object-cover" />
+          ) : (
+            <div className="h-10 w-10 shrink-0 rounded bg-neutral-100" />
+          )}
+          <div className="min-w-0">
+            <p className="font-medium">
+              {item.nameFr}{" "}
+              <span className="font-normal text-neutral-400">/ {item.nameAr}</span>{" "}
+              <span className="font-normal text-neutral-500">{priceLabel(lang, item)}</span>
+            </p>
+            {(item.descriptionFr || item.descriptionAr) && (
+              <p className="truncate text-sm text-neutral-500">
+                {item.descriptionFr} {item.descriptionAr && `/ ${item.descriptionAr}`}
+              </p>
+            )}
+            <div className="flex flex-wrap gap-1.5">
+              {(item.noteFr || item.noteAr) && (
+                <span className="text-xs text-neutral-400">
+                  {item.noteFr} {item.noteAr && `/ ${item.noteAr}`}
+                </span>
+              )}
+              {optionCount > 0 && (
+                <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] text-neutral-600">
+                  {optionCount} {pick(lang, "مجموعة اختيارات", optionCount > 1 ? "groupes d'options" : "groupe d'options")}
+                </span>
+              )}
+              {!item.available && (
+                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] text-amber-800">
+                  {pick(lang, "مخفي", "Masqué")}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-3">
+          <MoveButtons action={moveItem} id={item.id} isFirst={isFirst} isLast={isLast} />
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            className="text-xs font-medium text-neutral-900 hover:underline"
+          >
+            {open ? pick(lang, "إغلاق", "Fermer") : pick(lang, "تعديل", "Modifier")}
+          </button>
+          <form action={duplicateItem}>
+            <input type="hidden" name="id" value={item.id} />
+            <button type="submit" className={linkButtonClass}>
+              {pick(lang, "نسخ", "Dupliquer")}
+            </button>
+          </form>
+          <form action={toggleItemAvailability}>
+            <input type="hidden" name="id" value={item.id} />
+            <input type="hidden" name="available" value={String(item.available)} />
+            <button type="submit" className={linkButtonClass}>
+              {item.available ? pick(lang, "إخفاء", "Masquer") : pick(lang, "إظهار", "Afficher")}
+            </button>
+          </form>
+          <DeleteButton
+            action={deleteItem}
+            id={item.id}
+            label={pick(lang, "حذف", "Supprimer")}
+            confirmMessage={pick(
+              lang,
+              `حذف "${item.nameAr}"؟`,
+              `Supprimer « ${item.nameFr} » ?`
+            )}
+          />
+        </div>
+      </div>
 
-export function AdminMenuView({ sections }: { sections: MenuSection[] }) {
+      {open && (
+        <div className="mt-4 flex flex-col gap-6 rounded-md bg-neutral-50 p-4">
+          <ItemForm
+            action={updateItem}
+            item={item}
+            categoryId={item.categoryId}
+            categories={categoryChoices}
+            onDone={() => setOpen(false)}
+          />
+          <div className="border-t border-neutral-200 pt-4">
+            <OptionGroupsEditor menuItemId={item.id} groups={item.optionGroups} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CategoryCard({
+  category,
+  isFirst,
+  isLast,
+  sections,
+  categoryChoices,
+}: {
+  category: AdminMenuCategory;
+  isFirst: boolean;
+  isLast: boolean;
+  sections: AdminMenuSection[];
+  categoryChoices: CategoryChoice[];
+}) {
+  const { lang } = useLanguage();
+  const [editing, setEditing] = useState(false);
+
+  return (
+    <div className="rounded-md border border-neutral-200 p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        {editing ? (
+          <RenameForm
+            action={updateCategory}
+            id={category.id}
+            nameFr={category.nameFr}
+            nameAr={category.nameAr}
+            onDone={() => setEditing(false)}
+            extra={
+              <select name="sectionId" defaultValue={category.sectionId} className={inputClass}>
+                {sections.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {pick(lang, s.nameAr, s.nameFr)}
+                  </option>
+                ))}
+              </select>
+            }
+          />
+        ) : (
+          <>
+            <h3 className="font-medium">
+              {category.nameFr}{" "}
+              <span className="font-normal text-neutral-400">/ {category.nameAr}</span>
+            </h3>
+            <div className="flex items-center gap-3">
+              <MoveButtons
+                action={moveCategory}
+                id={category.id}
+                isFirst={isFirst}
+                isLast={isLast}
+              />
+              <button type="button" onClick={() => setEditing(true)} className={linkButtonClass}>
+                {pick(lang, "تعديل", "Modifier")}
+              </button>
+              <DeleteButton
+                action={deleteCategory}
+                id={category.id}
+                label={pick(lang, "حذف الفئة", "Supprimer la catégorie")}
+                confirmMessage={pick(
+                  lang,
+                  `حذف الفئة "${category.nameAr}" وكل عناصرها (${category.items.length})؟`,
+                  `Supprimer la catégorie « ${category.nameFr} » et ses ${category.items.length} article(s) ?`
+                )}
+              />
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className="flex flex-col divide-y divide-neutral-100">
+        {category.items.map((item, index) => (
+          <ItemRow
+            key={item.id}
+            item={item}
+            isFirst={index === 0}
+            isLast={index === category.items.length - 1}
+            categoryChoices={categoryChoices}
+          />
+        ))}
+        {category.items.length === 0 && (
+          <p className="py-3 text-sm text-neutral-400">
+            {pick(lang, "لا توجد عناصر بعد.", "Aucun article pour le moment.")}
+          </p>
+        )}
+      </div>
+
+      <details className="mt-4 border-t border-neutral-100 pt-4">
+        <summary className="cursor-pointer text-sm font-medium text-neutral-700">
+          {pick(lang, "إضافة عنصر", "Ajouter un article")}
+        </summary>
+        <div className="mt-3">
+          <ItemForm action={createItem} categoryId={category.id} />
+        </div>
+      </details>
+    </div>
+  );
+}
+
+function SectionCard({
+  section,
+  isFirst,
+  isLast,
+  sections,
+  categoryChoices,
+}: {
+  section: AdminMenuSection;
+  isFirst: boolean;
+  isLast: boolean;
+  sections: AdminMenuSection[];
+  categoryChoices: CategoryChoice[];
+}) {
+  const { lang } = useLanguage();
+  const [editing, setEditing] = useState(false);
+  const itemCount = section.categories.reduce((sum, c) => sum + c.items.length, 0);
+
+  return (
+    <section className="rounded-lg border-2 border-neutral-300 p-5">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
+        {editing ? (
+          <RenameForm
+            action={updateSection}
+            id={section.id}
+            nameFr={section.nameFr}
+            nameAr={section.nameAr}
+            onDone={() => setEditing(false)}
+          />
+        ) : (
+          <>
+            <h2 className="text-xl font-semibold">
+              {section.nameFr}{" "}
+              <span className="text-base font-normal text-neutral-400">/ {section.nameAr}</span>
+            </h2>
+            <div className="flex items-center gap-3">
+              <MoveButtons action={moveSection} id={section.id} isFirst={isFirst} isLast={isLast} />
+              <button type="button" onClick={() => setEditing(true)} className={linkButtonClass}>
+                {pick(lang, "تعديل", "Modifier")}
+              </button>
+              <DeleteButton
+                action={deleteSection}
+                id={section.id}
+                label={pick(lang, "حذف القسم", "Supprimer la section")}
+                confirmMessage={pick(
+                  lang,
+                  `حذف القسم "${section.nameAr}" مع ${section.categories.length} فئة و${itemCount} عنصر؟`,
+                  `Supprimer la section « ${section.nameFr} », ses ${section.categories.length} catégorie(s) et ${itemCount} article(s) ?`
+                )}
+              />
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-8">
+        {section.categories.map((category, index) => (
+          <CategoryCard
+            key={category.id}
+            category={category}
+            isFirst={index === 0}
+            isLast={index === section.categories.length - 1}
+            sections={sections}
+            categoryChoices={categoryChoices}
+          />
+        ))}
+
+        <form
+          action={createCategory}
+          className="flex flex-wrap gap-3 rounded-md border border-dashed border-neutral-300 p-4"
+        >
+          <input type="hidden" name="sectionId" value={section.id} />
+          <input
+            name="nameFr"
+            placeholder="Nouvelle catégorie (français)"
+            required
+            className={`${inputClass} flex-1`}
+          />
+          <input
+            name="nameAr"
+            placeholder="اسم الفئة (عربي)"
+            required
+            dir="rtl"
+            className={`${inputClass} flex-1`}
+          />
+          <button type="submit" className={primaryButtonClass}>
+            {pick(lang, "إضافة فئة", "Ajouter une catégorie")}
+          </button>
+        </form>
+      </div>
+    </section>
+  );
+}
+
+export function AdminMenuView({ sections }: { sections: AdminMenuSection[] }) {
   const { lang } = useLanguage();
 
   const categories = sections.flatMap((s) => s.categories);
   const items = categories.flatMap((c) => c.items);
   const unavailableCount = items.filter((i) => !i.available).length;
+
+  const categoryChoices: CategoryChoice[] = sections.flatMap((s) =>
+    s.categories.map((c) => ({
+      id: c.id,
+      label: `${pick(lang, s.nameAr, s.nameFr)} › ${pick(lang, c.nameAr, c.nameFr)}`,
+    }))
+  );
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-10">
@@ -77,281 +426,15 @@ export function AdminMenuView({ sections }: { sections: MenuSection[] }) {
       </div>
 
       <div className="flex flex-col gap-12">
-        {sections.map((section) => (
-          <section
+        {sections.map((section, index) => (
+          <SectionCard
             key={section.id}
-            className="rounded-lg border-2 border-neutral-300 p-5"
-          >
-            <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-xl font-semibold">
-                {section.nameFr}{" "}
-                <span className="text-base font-normal text-neutral-400">
-                  / {section.nameAr}
-                </span>
-              </h2>
-              <form action={deleteSection}>
-                <input type="hidden" name="id" value={section.id} />
-                <button
-                  type="submit"
-                  className="text-xs text-red-600 hover:underline"
-                >
-                  {pick(lang, "حذف القسم", "Supprimer la section")}
-                </button>
-              </form>
-            </div>
-
-            <div className="flex flex-col gap-8">
-              {section.categories.map((category) => (
-                <div
-                  key={category.id}
-                  className="rounded-md border border-neutral-200 p-4"
-                >
-                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                    <h3 className="font-medium">
-                      {category.nameFr}{" "}
-                      <span className="font-normal text-neutral-400">
-                        / {category.nameAr}
-                      </span>
-                    </h3>
-                    <form action={deleteCategory}>
-                      <input type="hidden" name="id" value={category.id} />
-                      <button
-                        type="submit"
-                        className="text-xs text-red-600 hover:underline"
-                      >
-                        {pick(lang, "حذف الفئة", "Supprimer la catégorie")}
-                      </button>
-                    </form>
-                  </div>
-
-                  <div className="flex flex-col divide-y divide-neutral-100">
-                    {category.items.map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
-                      >
-                        <div className={!item.available ? "opacity-40" : ""}>
-                          <p className="font-medium">
-                            {item.nameFr}{" "}
-                            <span className="font-normal text-neutral-400">
-                              / {item.nameAr}
-                            </span>{" "}
-                            <span className="font-normal text-neutral-500">
-                              {item.comingSoon
-                                ? pick(lang, "(قريباً)", "(bientôt)")
-                                : item.priceLarge != null
-                                  ? `${item.price} / ${item.priceLarge}`
-                                  : item.price != null
-                                    ? pick(
-                                        lang,
-                                        `${item.price} درهم`,
-                                        `${item.price} DH`
-                                      )
-                                    : ""}
-                            </span>
-                          </p>
-                          {(item.descriptionFr || item.descriptionAr) && (
-                            <p className="text-sm text-neutral-500">
-                              {item.descriptionFr}{" "}
-                              {item.descriptionAr && `/ ${item.descriptionAr}`}
-                            </p>
-                          )}
-                          {(item.noteFr || item.noteAr) && (
-                            <p className="text-xs text-neutral-400">
-                              {item.noteFr} {item.noteAr && `/ ${item.noteAr}`}
-                            </p>
-                          )}
-                          <form
-                            action={updateItemPhoto}
-                            className="mt-2 flex items-center gap-2"
-                          >
-                            <input type="hidden" name="id" value={item.id} />
-                            {item.photoUrl && (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={item.photoUrl}
-                                alt=""
-                                className="h-8 w-8 rounded object-cover"
-                              />
-                            )}
-                            <input
-                              name="photoUrl"
-                              defaultValue={item.photoUrl ?? ""}
-                              placeholder={pick(
-                                lang,
-                                "رابط الصورة",
-                                "URL de la photo"
-                              )}
-                              className="w-56 rounded-md border border-neutral-300 px-2 py-1 text-xs"
-                            />
-                            <button
-                              type="submit"
-                              className="text-xs text-neutral-600 hover:underline"
-                            >
-                              {pick(lang, "حفظ", "Enregistrer")}
-                            </button>
-                          </form>
-                        </div>
-                        <div className="flex shrink-0 items-center gap-3">
-                          <form action={toggleItemAvailability}>
-                            <input type="hidden" name="id" value={item.id} />
-                            <input
-                              type="hidden"
-                              name="available"
-                              value={String(item.available)}
-                            />
-                            <button
-                              type="submit"
-                              className="text-xs text-neutral-600 hover:underline"
-                            >
-                              {item.available
-                                ? pick(lang, "إخفاء", "Masquer")
-                                : pick(lang, "إظهار", "Afficher")}
-                            </button>
-                          </form>
-                          <form action={deleteItem}>
-                            <input type="hidden" name="id" value={item.id} />
-                            <button
-                              type="submit"
-                              className="text-xs text-red-600 hover:underline"
-                            >
-                              {pick(lang, "حذف", "Supprimer")}
-                            </button>
-                          </form>
-                        </div>
-                      </div>
-                    ))}
-                    {category.items.length === 0 && (
-                      <p className="py-3 text-sm text-neutral-400">
-                        {pick(lang, "لا توجد عناصر بعد.", "Aucun article pour le moment.")}
-                      </p>
-                    )}
-                  </div>
-
-                  <details className="mt-4 border-t border-neutral-100 pt-4">
-                    <summary className="cursor-pointer text-sm font-medium text-neutral-700">
-                      {pick(lang, "إضافة عنصر", "Ajouter un article")}
-                    </summary>
-                    <form
-                      action={createItem}
-                      className="mt-3 grid grid-cols-2 gap-3"
-                    >
-                      <input
-                        type="hidden"
-                        name="categoryId"
-                        value={category.id}
-                      />
-                      <input
-                        name="nameFr"
-                        placeholder="Name (French)"
-                        required
-                        className="rounded-md border border-neutral-300 px-3 py-2 text-sm"
-                      />
-                      <input
-                        name="nameAr"
-                        placeholder="الاسم (عربي)"
-                        required
-                        dir="rtl"
-                        className="rounded-md border border-neutral-300 px-3 py-2 text-sm"
-                      />
-                      <input
-                        name="descriptionFr"
-                        placeholder="Description (French, optional)"
-                        className="col-span-2 rounded-md border border-neutral-300 px-3 py-2 text-sm"
-                      />
-                      <input
-                        name="descriptionAr"
-                        placeholder="الوصف (عربي، اختياري)"
-                        dir="rtl"
-                        className="col-span-2 rounded-md border border-neutral-300 px-3 py-2 text-sm"
-                      />
-                      <input
-                        name="noteFr"
-                        placeholder="Note, e.g. Tous les lundis (optional)"
-                        className="rounded-md border border-neutral-300 px-3 py-2 text-sm"
-                      />
-                      <input
-                        name="noteAr"
-                        placeholder="ملاحظة، مثال: كل اثنين (اختياري)"
-                        dir="rtl"
-                        className="rounded-md border border-neutral-300 px-3 py-2 text-sm"
-                      />
-                      <input
-                        name="price"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder={pick(
-                          lang,
-                          "السعر (أو الحجم الصغير)",
-                          "Prix (ou petite taille)"
-                        )}
-                        className="rounded-md border border-neutral-300 px-3 py-2 text-sm"
-                      />
-                      <input
-                        name="priceLarge"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder={pick(
-                          lang,
-                          "سعر الحجم الكبير (اختياري)",
-                          "Prix grande taille (optionnel)"
-                        )}
-                        className="rounded-md border border-neutral-300 px-3 py-2 text-sm"
-                      />
-                      <input
-                        name="photoUrl"
-                        type="url"
-                        placeholder={pick(
-                          lang,
-                          "رابط صورة الطبق (اختياري)",
-                          "URL de la photo du plat (optionnel)"
-                        )}
-                        className="col-span-2 rounded-md border border-neutral-300 px-3 py-2 text-sm"
-                      />
-                      <label className="col-span-2 flex items-center gap-2 text-sm text-neutral-600">
-                        <input type="checkbox" name="comingSoon" />
-                        {pick(lang, "قريباً (بدون عرض السعر)", "Bientôt (sans prix affiché)")}
-                      </label>
-                      <button
-                        type="submit"
-                        className="col-span-2 rounded-md bg-neutral-900 px-3 py-2 text-sm font-medium text-white hover:bg-neutral-700"
-                      >
-                        {pick(lang, "إضافة عنصر", "Ajouter l'article")}
-                      </button>
-                    </form>
-                  </details>
-                </div>
-              ))}
-
-              <form
-                action={createCategory}
-                className="flex flex-wrap gap-3 rounded-md border border-dashed border-neutral-300 p-4"
-              >
-                <input type="hidden" name="sectionId" value={section.id} />
-                <input
-                  name="nameFr"
-                  placeholder="New category name (French)"
-                  required
-                  className="flex-1 rounded-md border border-neutral-300 px-3 py-2 text-sm"
-                />
-                <input
-                  name="nameAr"
-                  placeholder="اسم الفئة (عربي)"
-                  required
-                  dir="rtl"
-                  className="flex-1 rounded-md border border-neutral-300 px-3 py-2 text-sm"
-                />
-                <button
-                  type="submit"
-                  className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700"
-                >
-                  {pick(lang, "إضافة فئة", "Ajouter une catégorie")}
-                </button>
-              </form>
-            </div>
-          </section>
+            section={section}
+            isFirst={index === 0}
+            isLast={index === sections.length - 1}
+            sections={sections}
+            categoryChoices={categoryChoices}
+          />
         ))}
       </div>
 
@@ -361,21 +444,18 @@ export function AdminMenuView({ sections }: { sections: MenuSection[] }) {
       >
         <input
           name="nameFr"
-          placeholder="New section title (French), e.g. Les bons débuts !"
+          placeholder="Nouvelle section (français), ex. Les bons débuts !"
           required
-          className="flex-1 rounded-md border border-neutral-300 px-3 py-2 text-sm"
+          className={`${inputClass} flex-1`}
         />
         <input
           name="nameAr"
           placeholder="عنوان القسم (عربي)"
           required
           dir="rtl"
-          className="flex-1 rounded-md border border-neutral-300 px-3 py-2 text-sm"
+          className={`${inputClass} flex-1`}
         />
-        <button
-          type="submit"
-          className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700"
-        >
+        <button type="submit" className={primaryButtonClass}>
           {pick(lang, "إضافة قسم", "Ajouter une section")}
         </button>
       </form>
