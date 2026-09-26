@@ -143,8 +143,13 @@ export async function removeWorkstationIngredient(formData: FormData) {
 
 // ---- Workers ----
 
+// Workers log in with a short username (stored in the `email` login column).
 const workerSchema = z.object({
-  email: z.string().trim().toLowerCase().email(),
+  username: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .regex(/^[a-z0-9._-]{3,30}$/),
   password: z.string().min(6).max(100),
   workstationId: z.string().min(1),
 });
@@ -156,21 +161,21 @@ export async function createWorker(
   await requireAdmin();
 
   const parsed = workerSchema.safeParse({
-    email: formData.get("email"),
+    username: formData.get("username"),
     password: formData.get("password"),
     workstationId: formData.get("workstationId"),
   });
   if (!parsed.success) return { status: "error" as const, message: "invalid" };
 
   const existing = await prisma.adminUser.findUnique({
-    where: { email: parsed.data.email },
+    where: { email: parsed.data.username },
   });
   if (existing) return { status: "error" as const, message: "exists" };
 
   const passwordHash = await bcrypt.hash(parsed.data.password, 10);
   await prisma.adminUser.create({
     data: {
-      email: parsed.data.email,
+      email: parsed.data.username,
       passwordHash,
       role: "WORKER",
       workstationId: parsed.data.workstationId,

@@ -32,8 +32,12 @@ export function StockWorkersView({
   const errorMessage =
     state.status === "error"
       ? state.message === "exists"
-        ? pick(lang, "البريد الإلكتروني مستخدم بالفعل", "Cet email est déjà utilisé")
-        : pick(lang, "المعطيات غير صحيحة", "Données invalides")
+        ? pick(lang, "اسم المستخدم مستخدم بالفعل", "Ce nom d'utilisateur est déjà pris")
+        : pick(
+            lang,
+            "معطيات غير صحيحة: اسم المستخدم من 3 إلى 30 حرفًا (أحرف، أرقام، . _ -) وكلمة المرور 6 أحرف على الأقل",
+            "Données invalides : nom d'utilisateur de 3 à 30 caractères (lettres, chiffres, . _ -) et mot de passe d'au moins 6 caractères"
+          )
       : null;
 
   const filteredWorkers = useMemo(() => {
@@ -62,13 +66,20 @@ export function StockWorkersView({
       >
         <div>
           <label className="mb-2 block text-sm font-medium text-neutral-700">
-            {pick(lang, "البريد الإلكتروني", "Email")}
+            {pick(lang, "اسم المستخدم", "Nom d'utilisateur")}
           </label>
           <input
-            type="email"
-            name="email"
+            type="text"
+            name="username"
             required
+            minLength={3}
+            maxLength={30}
+            pattern="[A-Za-z0-9._\-]{3,30}"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
             autoComplete="off"
+            placeholder={pick(lang, "مثال: ahmed", "ex : ahmed")}
             className="w-full rounded-lg border border-neutral-300 px-4 py-2.5 text-sm focus:border-neutral-900 focus:outline-none"
           />
         </div>

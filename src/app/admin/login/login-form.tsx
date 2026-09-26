@@ -16,8 +16,8 @@ export function LoginForm() {
   const errorMessage =
     state.status === "error"
       ? state.code === "missing_fields"
-        ? pick(lang, "البريد الإلكتروني وكلمة المرور مطلوبان", "Email et mot de passe requis")
-        : pick(lang, "البريد الإلكتروني أو كلمة المرور غير صحيحة", "Email ou mot de passe incorrect")
+        ? pick(lang, "اسم المستخدم وكلمة المرور مطلوبان", "Identifiant et mot de passe requis")
+        : pick(lang, "اسم المستخدم أو كلمة المرور غير صحيحة", "Identifiant ou mot de passe incorrect")
       : null;
 
   return (
@@ -31,13 +31,16 @@ export function LoginForm() {
             htmlFor="email"
             className="mb-2 block text-sm font-medium text-neutral-700"
           >
-            {pick(lang, "البريد الإلكتروني", "Email")}
+            {pick(lang, "البريد الإلكتروني أو اسم المستخدم", "Email ou nom d'utilisateur")}
           </label>
           <input
             id="email"
             name="email"
-            type="email"
+            type="text"
             required
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
             autoComplete="username"
             className="w-full rounded-lg border border-neutral-300 px-4 py-3 text-base focus:border-neutral-900 focus:outline-none"
           />
