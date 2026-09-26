@@ -23,7 +23,7 @@ export function LoginForm() {
   return (
     <>
       <h1 className="mb-8 text-2xl font-semibold tracking-tight">
-        {pick(lang, "تسجيل دخول المشرف", "Connexion admin")}
+        {pick(lang, "تسجيل الدخول", "Connexion")}
       </h1>
       <form action={formAction} className="flex flex-col gap-5">
         <div>
