@@ -15,7 +15,8 @@ export default async function StockVariancePage({
   const date = normalizeToDay(dateParam ? new Date(dateParam) : new Date());
 
   const stockCounts = await prisma.stockCount.findMany({
-    where: { date },
+    // Variance is only computed against the closing count (see finalizeStockCount).
+    where: { date, period: "CLOSING" },
     include: {
       workstation: { include: { kitchen: true } },
       worker: true,

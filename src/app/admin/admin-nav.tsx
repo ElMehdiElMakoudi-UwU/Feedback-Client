@@ -25,7 +25,14 @@ type IconComponent = (props: { className?: string }) => ReactElement;
 type NavLink = { href: string; ar: string; fr: string; icon: IconComponent };
 type NavEntry =
   | ({ type: "link" } & NavLink)
-  | { type: "group"; key: string; ar: string; fr: string; icon: IconComponent; items: NavLink[] };
+  | {
+      type: "group";
+      key: string;
+      ar: string;
+      fr: string;
+      icon: IconComponent;
+      items: NavLink[];
+    };
 
 function buildNav(role: string): NavEntry[] {
   if (role === "WORKER") {
@@ -57,7 +64,12 @@ function buildNav(role: string): NavEntry[] {
       ar: "التقييمات",
       fr: "Avis",
       items: [
-        { href: "/admin/feedback", icon: IconStar, ar: "التقييمات", fr: "Avis" },
+        {
+          href: "/admin/feedback",
+          icon: IconStar,
+          ar: "التقييمات",
+          fr: "Avis",
+        },
         {
           href: "/admin/feedback/recovery",
           icon: IconHeart,
@@ -139,7 +151,8 @@ function DesktopGroup({
   useEffect(() => {
     if (!open) return;
     function onClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node))
+        setOpen(false);
     }
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
@@ -220,7 +233,9 @@ function MobileGroup({
         }`}
       >
         <Icon className="h-5 w-5 shrink-0" />
-        <span className="flex-1 text-left">{pick(lang, entry.ar, entry.fr)}</span>
+        <span className="flex-1 text-left">
+          {pick(lang, entry.ar, entry.fr)}
+        </span>
         <IconChevronDown
           className={`h-4 w-4 shrink-0 transition-transform duration-150 ${
             expanded ? "rotate-180" : ""
@@ -237,7 +252,7 @@ function MobileGroup({
               !entry.items.some(
                 (other) =>
                   other.href.length > item.href.length &&
-                  pathname.startsWith(other.href)
+                  pathname.startsWith(other.href),
               );
             return (
               <Link
@@ -284,87 +299,88 @@ export function AdminNav({ role }: { role: string }) {
   const nav = buildNav(role);
 
   return (
-    <nav className="sticky top-0 z-40 border-b border-neutral-200 bg-white/95 backdrop-blur">
-      <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
-        <Link
-          href="/admin"
-          className="flex min-w-0 items-center gap-2"
-        >
-          <Image
-            src="/brand/icon-mark.png"
-            alt=""
-            width={32}
-            height={12}
-            className="h-5 w-auto shrink-0"
-          />
-          <span className="truncate font-semibold tracking-tight">
-            {pick(lang, "إدارة سندباد", "Sindibad Admin")}
-          </span>
-        </Link>
+    <>
+      <nav className="sticky top-0 z-40 border-b border-neutral-200 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
+          <Link href="/admin" className="flex min-w-0 items-center gap-2">
+            <Image
+              src="/brand/icon-mark.png"
+              alt=""
+              width={32}
+              height={12}
+              className="h-5 w-auto shrink-0"
+            />
+            <span className="truncate font-semibold tracking-tight">
+              {pick(lang, "إدارة سندباد", "Sindibad Admin")}
+            </span>
+          </Link>
 
-        <div className="hidden items-center gap-1 md:flex">
-          {nav.map((entry) =>
-            entry.type === "link" ? (
-              <Link
-                key={entry.href}
-                href={entry.href}
-                className={`flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150 ${
-                  isEntryActive(entry, pathname)
-                    ? "text-[var(--sindibad-maroon)]"
-                    : "text-neutral-600 hover:text-neutral-900"
-                }`}
-              >
-                <entry.icon className="h-4 w-4" />
-                {pick(lang, entry.ar, entry.fr)}
-              </Link>
-            ) : (
-              <DesktopGroup
-                key={entry.key}
-                entry={entry}
-                active={isEntryActive(entry, pathname)}
-                lang={lang}
-              />
-            )
-          )}
-        </div>
-
-        <div className="hidden items-center gap-3 md:flex">
-          <LanguageToggle />
-          <form action={logoutAdmin}>
-            <button
-              type="submit"
-              className="flex items-center gap-1.5 rounded-md px-3 py-2 text-sm text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900"
-            >
-              <IconLogout className="h-4 w-4" />
-              {pick(lang, "تسجيل الخروج", "Se déconnecter")}
-            </button>
-          </form>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          aria-expanded={open}
-          aria-label={pick(lang, "القائمة", "Menu")}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-neutral-200 text-neutral-600 active:bg-neutral-50 md:hidden"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            className="h-5 w-5"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={2}
-            strokeLinecap="round"
-          >
-            {open ? (
-              <path d="M6 6l12 12M18 6L6 18" />
-            ) : (
-              <path d="M4 7h16M4 12h16M4 17h16" />
+          <div className="hidden items-center gap-1 md:flex">
+            {nav.map((entry) =>
+              entry.type === "link" ? (
+                <Link
+                  key={entry.href}
+                  href={entry.href}
+                  className={`flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150 ${
+                    isEntryActive(entry, pathname)
+                      ? "text-[var(--sindibad-maroon)]"
+                      : "text-neutral-600 hover:text-neutral-900"
+                  }`}
+                >
+                  <entry.icon className="h-4 w-4" />
+                  {pick(lang, entry.ar, entry.fr)}
+                </Link>
+              ) : (
+                <DesktopGroup
+                  key={entry.key}
+                  entry={entry}
+                  active={isEntryActive(entry, pathname)}
+                  lang={lang}
+                />
+              ),
             )}
-          </svg>
-        </button>
-      </div>
+          </div>
 
+          <div className="hidden items-center gap-3 md:flex">
+            <LanguageToggle />
+            <form action={logoutAdmin}>
+              <button
+                type="submit"
+                className="flex items-center gap-1.5 rounded-md px-3 py-2 text-sm text-neutral-500 hover:bg-neutral-50 hover:text-neutral-900"
+              >
+                <IconLogout className="h-4 w-4" />
+                {pick(lang, "تسجيل الخروج", "Se déconnecter")}
+              </button>
+            </form>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            aria-label={pick(lang, "القائمة", "Menu")}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-neutral-200 text-neutral-600 active:bg-neutral-50 md:hidden"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              className="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+            >
+              {open ? (
+                <path d="M6 6l12 12M18 6L6 18" />
+              ) : (
+                <path d="M4 7h16M4 12h16M4 17h16" />
+              )}
+            </svg>
+          </button>
+        </div>
+      </nav>
+
+      {/* Rendered outside <nav>: its backdrop-blur would make it the containing
+          block for this fixed overlay, clipping the drawer to the nav's height. */}
       {open && (
         <div className="fixed inset-0 z-50 md:hidden">
           <div
@@ -420,7 +436,7 @@ export function AdminNav({ role }: { role: string }) {
                     lang={lang}
                     onNavigate={() => setOpen(false)}
                   />
-                )
+                ),
               )}
             </div>
 
@@ -439,6 +455,6 @@ export function AdminNav({ role }: { role: string }) {
           </div>
         </div>
       )}
-    </nav>
+    </>
   );
 }
