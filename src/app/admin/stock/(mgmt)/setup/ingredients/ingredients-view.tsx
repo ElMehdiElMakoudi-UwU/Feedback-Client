@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useLanguage, pick } from "@/lib/language-context";
 import { createIngredient, deleteIngredient } from "@/app/actions/stock";
 import { IconPackage, IconPlus, IconSearch, IconTrash } from "@/app/admin/stock/icons";
+import { SUGGESTED_UNITS } from "@/lib/units";
 
 type Ingredient = { id: string; name: string; unit: string };
 
@@ -75,10 +76,16 @@ export function IngredientsView({ ingredients }: { ingredients: Ingredient[] }) 
         />
         <input
           name="unit"
+          list="ingredient-units"
           placeholder={pick(lang, "الوحدة، مثال: كغ", "Unité, ex. Kg")}
           required
           className="w-40 rounded-md border border-neutral-300 px-3 py-2 text-sm focus:border-neutral-900 focus:outline-none"
         />
+        <datalist id="ingredient-units">
+          {SUGGESTED_UNITS.map((u) => (
+            <option key={u} value={u} />
+          ))}
+        </datalist>
         <button
           type="submit"
           className="flex cursor-pointer items-center gap-1.5 rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-neutral-700"

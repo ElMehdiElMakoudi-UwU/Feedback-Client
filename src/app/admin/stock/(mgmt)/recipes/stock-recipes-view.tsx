@@ -15,6 +15,7 @@ import {
   IconPlus,
   IconSearch,
 } from "@/app/admin/stock/icons";
+import { QuantityInput } from "@/app/admin/stock/quantity-input";
 
 type Ingredient = { id: string; name: string; unit: string };
 type Workstation = { id: string; name: string; kitchen: { name: string } };
@@ -71,6 +72,63 @@ function ItemStatus({ item, lang }: { item: MenuItem; lang: "ar" | "fr" }) {
         {pick(lang, `${item.recipeItems.length} مكوّن`, `${item.recipeItems.length} ingrédient(s)`)}
       </span>
     </span>
+  );
+}
+
+function AddRecipeItemForm({
+  item,
+  ingredients,
+  lang,
+}: {
+  item: MenuItem;
+  ingredients: Ingredient[];
+  lang: "ar" | "fr";
+}) {
+  const [ingredientId, setIngredientId] = useState("");
+  const selected = ingredients.find((ing) => ing.id === ingredientId);
+
+  return (
+    <form action={addRecipeItem} className="flex flex-wrap gap-2">
+      <input type="hidden" name="menuItemId" value={item.id} />
+      <select
+        name="ingredientId"
+        required
+        value={ingredientId}
+        onChange={(e) => setIngredientId(e.target.value)}
+        className="flex-1 cursor-pointer rounded-md border border-neutral-300 px-2 py-1.5 text-xs"
+      >
+        <option value="">{pick(lang, "اختر مكوّناً", "Choisir un ingrédient")}</option>
+        {ingredients.map((ing) => (
+          <option key={ing.id} value={ing.id}>
+            {ing.name} ({ing.unit})
+          </option>
+        ))}
+      </select>
+      {item.priceLarge != null && (
+        <select
+          name="size"
+          className="cursor-pointer rounded-md border border-neutral-300 px-2 py-1.5 text-xs"
+        >
+          <option value="">{pick(lang, "كل الأحجام", "Toutes tailles")}</option>
+          <option value="REGULAR">{pick(lang, "صغير", "Régulier")}</option>
+          <option value="LARGE">{pick(lang, "كبير", "Grande")}</option>
+        </select>
+      )}
+      <QuantityInput
+        name="quantity"
+        baseUnit={selected?.unit ?? ""}
+        placeholder={pick(lang, "الكمية لكل وحدة", "Qté par unité")}
+        required
+        className="w-32 rounded-md border border-neutral-300 px-2 py-1.5 text-xs focus:border-neutral-900 focus:outline-none"
+      />
+      <button
+        type="submit"
+        className="flex cursor-pointer items-center gap-1 rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-neutral-700"
+      >
+        <IconPlus className="h-3.5 w-3.5" />
+        {pick(lang, "إضافة", "Ajouter")}
+      </button>
+    </form>
   );
 }
 
@@ -260,47 +318,7 @@ export function StockRecipesView({
                       )}
                     </div>
 
-                    <form action={addRecipeItem} className="flex flex-wrap gap-2">
-                      <input type="hidden" name="menuItemId" value={item.id} />
-                      <select
-                        name="ingredientId"
-                        required
-                        className="flex-1 cursor-pointer rounded-md border border-neutral-300 px-2 py-1.5 text-xs"
-                      >
-                        <option value="">{pick(lang, "اختر مكوّناً", "Choisir un ingrédient")}</option>
-                        {ingredients.map((ing) => (
-                          <option key={ing.id} value={ing.id}>
-                            {ing.name} ({ing.unit})
-                          </option>
-                        ))}
-                      </select>
-                      {item.priceLarge != null && (
-                        <select
-                          name="size"
-                          className="cursor-pointer rounded-md border border-neutral-300 px-2 py-1.5 text-xs"
-                        >
-                          <option value="">{pick(lang, "كل الأحجام", "Toutes tailles")}</option>
-                          <option value="REGULAR">{pick(lang, "صغير", "Régulier")}</option>
-                          <option value="LARGE">{pick(lang, "كبير", "Grande")}</option>
-                        </select>
-                      )}
-                      <input
-                        name="quantity"
-                        type="number"
-                        step="0.001"
-                        min="0"
-                        placeholder={pick(lang, "الكمية لكل وحدة", "Qté par unité")}
-                        required
-                        className="w-32 rounded-md border border-neutral-300 px-2 py-1.5 text-xs focus:border-neutral-900 focus:outline-none"
-                      />
-                      <button
-                        type="submit"
-                        className="flex cursor-pointer items-center gap-1 rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-neutral-700"
-                      >
-                        <IconPlus className="h-3.5 w-3.5" />
-                        {pick(lang, "إضافة", "Ajouter")}
-                      </button>
-                    </form>
+                    <AddRecipeItemForm item={item} ingredients={ingredients} lang={lang} />
                   </div>
                 </details>
               ))}

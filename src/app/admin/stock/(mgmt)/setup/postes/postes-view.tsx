@@ -125,15 +125,6 @@ export function PostesView({
                         </option>
                       ))}
                     </select>
-                    <input
-                      name="openingQuantity"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder={pick(lang, "الكمية الافتتاحية", "Quantité initiale")}
-                      required
-                      className="w-40 rounded-md border border-neutral-300 px-2 py-1.5 text-sm focus:border-neutral-900 focus:outline-none"
-                    />
                     <button
                       type="submit"
                       className="flex cursor-pointer items-center gap-1.5 rounded-md bg-neutral-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-neutral-700"

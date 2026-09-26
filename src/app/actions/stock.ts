@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin, requireStaff, requireWorker } from "@/lib/require-admin";
 import { finalizeStockCount, normalizeToDay } from "@/lib/stock";
 import { savePhoto } from "@/lib/upload";
+import { toBaseUnit } from "@/lib/units";
 
 function revalidateStock() {
   revalidatePath("/admin/stock");
@@ -18,6 +19,17 @@ function revalidateStock() {
   revalidatePath("/admin/stock/variance");
   revalidatePath("/admin/stock/consumption");
   revalidatePath("/admin/stock/count");
+}
+
+// Reads a quantity field plus its optional `${key}_unit` picker and converts
+// it to the ingredient's base unit. Null when empty or not a number.
+function readQuantity(formData: FormData, key: string, baseUnit: string): number | null {
+  const raw = formData.get(key);
+  if (raw === null || raw === "") return null;
+  const value = Number(raw);
+  if (!Number.isFinite(value)) return null;
+  const unitKey = formData.get(`${key}_unit`);
+  return toBaseUnit(value, typeof unitKey === "string" ? unitKey : null, baseUnit);
 }
 
 // ---- Kitchens & workstations ----
@@ -99,7 +111,6 @@ export async function deleteIngredient(formData: FormData) {
 const workstationIngredientSchema = z.object({
   workstationId: z.string().min(1),
   ingredientId: z.string().min(1),
-  openingQuantity: z.coerce.number().min(0).max(1_000_000),
 });
 
 export async function addWorkstationIngredient(formData: FormData) {
@@ -107,7 +118,6 @@ export async function addWorkstationIngredient(formData: FormData) {
   const parsed = workstationIngredientSchema.safeParse({
     workstationId: formData.get("workstationId"),
     ingredientId: formData.get("ingredientId"),
-    openingQuantity: formData.get("openingQuantity"),
   });
   if (!parsed.success) return;
   const count = await prisma.workstationIngredient.count({
@@ -117,7 +127,6 @@ export async function addWorkstationIngredient(formData: FormData) {
     data: {
       workstationId: parsed.data.workstationId,
       ingredientId: parsed.data.ingredientId,
-      currentQuantity: parsed.data.openingQuantity,
       sortOrder: count,
     },
   });
@@ -217,12 +226,16 @@ export async function addRecipeItem(formData: FormData) {
     quantity: formData.get("quantity"),
   });
   if (!parsed.success) return;
+  const ingredient = await prisma.ingredient.findUnique({ where: { id: parsed.data.ingredientId } });
+  if (!ingredient) return;
+  const quantity = readQuantity(formData, "quantity", ingredient.unit);
+  if (quantity === null || quantity <= 0) return;
   await prisma.recipeItem.create({
     data: {
       menuItemId: parsed.data.menuItemId,
       ingredientId: parsed.data.ingredientId,
       size: parsed.data.size || null,
-      quantity: parsed.data.quantity,
+      quantity,
     },
   });
   revalidateStock();
@@ -257,9 +270,12 @@ export async function logRestock(formData: FormData) {
 
   const wsIngredient = await prisma.workstationIngredient.findUnique({
     where: { id: parsed.data.workstationIngredientId },
+    include: { ingredient: true },
   });
   if (!wsIngredient) return;
   if (user.role === "WORKER" && user.workstationId !== wsIngredient.workstationId) return;
+  const quantity = readQuantity(formData, "quantity", wsIngredient.ingredient.unit);
+  if (quantity === null || quantity <= 0) return;
 
   const photoUrl = await savePhoto(formData.get("photo"), "restocks");
 
@@ -267,7 +283,7 @@ export async function logRestock(formData: FormData) {
     prisma.stockRestock.create({
       data: {
         workstationIngredientId: parsed.data.workstationIngredientId,
-        quantity: parsed.data.quantity,
+        quantity,
         note: parsed.data.note,
         photoUrl,
         createdById: user.id,
@@ -275,7 +291,7 @@ export async function logRestock(formData: FormData) {
     }),
     prisma.workstationIngredient.update({
       where: { id: parsed.data.workstationIngredientId },
-      data: { currentQuantity: { increment: parsed.data.quantity } },
+      data: { currentQuantity: { increment: quantity } },
     }),
   ]);
 
@@ -295,15 +311,14 @@ export async function logRestocksBatch(formData: FormData) {
 
   const wsIngredients = await prisma.workstationIngredient.findMany({
     where: { workstationId },
+    include: { ingredient: true },
   });
 
   const entries: { workstationIngredientId: string; quantity: number; note?: string; photoUrl: string | null }[] =
     [];
   for (const wi of wsIngredients) {
-    const raw = formData.get(`restock_${wi.id}`);
-    if (raw === null || raw === "") continue;
-    const quantity = Number(raw);
-    if (!Number.isFinite(quantity) || quantity <= 0) continue;
+    const quantity = readQuantity(formData, `restock_${wi.id}`, wi.ingredient.unit);
+    if (quantity === null || quantity <= 0) continue;
     const noteRaw = formData.get(`restocknote_${wi.id}`);
     const note = typeof noteRaw === "string" && noteRaw.trim() ? noteRaw.trim().slice(0, 200) : undefined;
     const photoUrl = await savePhoto(formData.get(`restockphoto_${wi.id}`), "restocks");
@@ -334,13 +349,15 @@ export async function logRestocksBatch(formData: FormData) {
 
 // ---- Start/end-of-shift stock counts (worker) ----
 
-async function readCountEntries(formData: FormData, wsIngredients: { id: string }[], photoSubdir: string) {
+async function readCountEntries(
+  formData: FormData,
+  wsIngredients: { id: string; ingredient: { unit: string } }[],
+  photoSubdir: string
+) {
   const entries: { workstationIngredientId: string; actualQuantity: number; photoUrl: string | null }[] = [];
   for (const wsIngredient of wsIngredients) {
-    const raw = formData.get(`qty_${wsIngredient.id}`);
-    if (raw === null || raw === "") continue;
-    const quantity = Number(raw);
-    if (!Number.isFinite(quantity) || quantity < 0) continue;
+    const quantity = readQuantity(formData, `qty_${wsIngredient.id}`, wsIngredient.ingredient.unit);
+    if (quantity === null || quantity < 0) continue;
     const photoUrl = await savePhoto(formData.get(`photo_${wsIngredient.id}`), photoSubdir);
     entries.push({ workstationIngredientId: wsIngredient.id, actualQuantity: quantity, photoUrl });
   }
@@ -368,6 +385,7 @@ export async function submitOpeningCount(formData: FormData) {
 
   const wsIngredients = await prisma.workstationIngredient.findMany({
     where: { workstationId: worker.workstationId },
+    include: { ingredient: true },
   });
 
   const entries = await readCountEntries(formData, wsIngredients, "opening-counts");
@@ -428,6 +446,7 @@ export async function submitClosingCount(formData: FormData) {
 
   const wsIngredients = await prisma.workstationIngredient.findMany({
     where: { workstationId: worker.workstationId },
+    include: { ingredient: true },
   });
 
   const entries = await readCountEntries(formData, wsIngredients, "closing-counts");

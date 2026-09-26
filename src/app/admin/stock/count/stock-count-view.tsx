@@ -8,6 +8,7 @@ import {
   IconMoonStars,
   IconSunrise,
 } from "@/app/admin/stock/icons";
+import { QuantityInput } from "@/app/admin/stock/quantity-input";
 
 type WorkstationIngredient = {
   id: string;
@@ -176,11 +177,9 @@ export function StockCountView({
                   {wi.ingredient.name} ({wi.ingredient.unit})
                 </label>
                 <div className="flex items-center gap-2">
-                  <input
-                    type="number"
+                  <QuantityInput
                     name={`qty_${wi.id}`}
-                    step="0.01"
-                    min="0"
+                    baseUnit={wi.ingredient.unit}
                     defaultValue={wi.currentQuantity}
                     required
                     className="w-28 rounded-md border border-neutral-300 px-2 py-1.5 text-sm focus:border-neutral-900 focus:outline-none"
@@ -250,11 +249,9 @@ export function StockCountView({
                 <label className="w-40 shrink-0 text-sm">
                   {wi.ingredient.name} ({wi.ingredient.unit})
                 </label>
-                <input
-                  type="number"
+                <QuantityInput
                   name={`restock_${wi.id}`}
-                  step="0.01"
-                  min="0"
+                  baseUnit={wi.ingredient.unit}
                   placeholder="0"
                   className="w-20 rounded-md border border-neutral-300 px-2 py-1.5 text-sm focus:border-neutral-900 focus:outline-none"
                 />
@@ -346,11 +343,9 @@ export function StockCountView({
                   {wi.ingredient.name} ({wi.ingredient.unit})
                 </label>
                 <div className="flex items-center gap-2">
-                  <input
-                    type="number"
+                  <QuantityInput
                     name={`qty_${wi.id}`}
-                    step="0.01"
-                    min="0"
+                    baseUnit={wi.ingredient.unit}
                     defaultValue={entryQty(closingEntries, wi.id)}
                     required
                     className="w-28 rounded-md border border-neutral-300 px-2 py-1.5 text-sm focus:border-neutral-900 focus:outline-none"
