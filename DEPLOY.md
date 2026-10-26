@@ -32,8 +32,15 @@ Set these in the Coolify application's **Environment Variables** tab (mark secre
 | `ADMIN_EMAIL` | `owner@yourdomain.com` | Used by `prisma/seed.ts` if you run the seed manually |
 | `ADMIN_PASSWORD` | (strong password) | Same as above |
 | `NODE_ENV` | `production` | Already set in the image, but fine to set explicitly |
+| `PRIVATE_UPLOAD_DIR` | `/app/data/private-uploads` | Where staff clock-in photos are stored (never public). Must live under the mounted volume path, or photos are lost on redeploy |
 
 Do **not** commit real secrets — `.env` is gitignored; use `.env.example` as the template.
+
+### Staff clock-in kiosk (`/pointage`)
+
+The kiosk takes a photo with the tablet's front camera on every clock-in/out. Browsers only allow camera access over **HTTPS**, so the kiosk will refuse to clock anyone in while the site is served over plain HTTP.
+
+To set up a tablet: log in as admin **on the tablet**, open *Personnel → Pointage → Employés & bornes*, click *Enregistrer cet appareil*, then open `/pointage` and allow the camera. Leave the tablet on that page (browser kiosk / guided-access mode is recommended).
 
 ## 4. First deploy / migrations
 

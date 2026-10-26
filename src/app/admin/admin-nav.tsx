@@ -19,6 +19,7 @@ import {
   IconUsers,
   IconChevronDown,
   IconLogout,
+  IconClock,
 } from "@/app/admin/stock/icons";
 
 type IconComponent = (props: { className?: string }) => ReactElement;
@@ -126,11 +127,25 @@ function buildNav(role: string): NavEntry[] {
 
   if (role === "ADMIN") {
     entries.push({
-      type: "link",
-      href: "/admin/staff",
+      type: "group",
+      key: "staff",
       icon: IconUsers,
       ar: "الموظفون",
       fr: "Personnel",
+      items: [
+        {
+          href: "/admin/staff",
+          icon: IconUsers,
+          ar: "حسابات الصندوق",
+          fr: "Caissiers",
+        },
+        {
+          href: "/admin/attendance",
+          icon: IconClock,
+          ar: "الحضور",
+          fr: "Pointage",
+        },
+      ],
     });
   }
 

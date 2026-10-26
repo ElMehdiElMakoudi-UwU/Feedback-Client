@@ -376,3 +376,55 @@ model TableRequest {
 
   @@index([status, tableNumber])
 }
+
+// ---- Attendance (pointage) ----
+// Clock-ins only happen on a registered kiosk tablet in the restaurant, with a
+// PIN plus an automatic camera snapshot, so a shared PIN alone can't clock
+// someone in from elsewhere and a buddy-punch shows up in the photo log.
+
+// Anyone who works shifts — independent of AdminUser, since most floor and
+// kitchen staff never log into the admin app.
+model Employee {
+  id             String    @id @default(cuid())
+  name           String
+  pinHash        String
+  active         Boolean   @default(true)
+  failedAttempts Int       @default(0)
+  lockedUntil    DateTime?
+  createdAt      DateTime  @default(now())
+  shifts         Shift[]
+}
+
+// A tablet the admin has enrolled as a clock-in kiosk. The browser holds a
+// random token in an httpOnly cookie; only its SHA-256 is stored here.
+model KioskDevice {
+  id          String    @id @default(cuid())
+  name        String
+  tokenHash   String    @unique
+  revokedAt   DateTime?
+  lastSeenAt  DateTime?
+  createdAt   DateTime  @default(now())
+  clockIns    Shift[]   @relation("ClockInDevice")
+  clockOuts   Shift[]   @relation("ClockOutDevice")
+}
+
+model Shift {
+  id                String       @id @default(cuid())
+  employeeId        String
+  employee          Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  clockInAt         DateTime     @default(now())
+  clockInPhotoUrl   String
+  clockInDeviceId   String?
+  clockInDevice     KioskDevice? @relation("ClockInDevice", fields: [clockInDeviceId], references: [id], onDelete: SetNull)
+  clockOutAt        DateTime?
+  clockOutPhotoUrl  String?
+  clockOutDeviceId  String?
+  clockOutDevice    KioskDevice? @relation("ClockOutDevice", fields: [clockOutDeviceId], references: [id], onDelete: SetNull)
+  // Set when an admin corrects the times by hand (e.g. a forgotten clock-out).
+  editedById        String?
+  editedAt          DateTime?
+  editNote          String?
+
+  @@index([employeeId, clockOutAt])
+  @@index([clockInAt])
+}
