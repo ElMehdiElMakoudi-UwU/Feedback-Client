@@ -28,11 +28,22 @@ function useClock() {
   return now;
 }
 
+type CameraFailure = "insecure" | "denied" | "missing" | "busy" | "other";
+
+function classifyCameraError(err: unknown): CameraFailure {
+  if (!window.isSecureContext) return "insecure";
+  const name = err instanceof DOMException ? err.name : "";
+  if (name === "NotAllowedError" || name === "SecurityError") return "denied";
+  if (name === "NotFoundError" || name === "OverconstrainedError") return "missing";
+  if (name === "NotReadableError" || name === "AbortError") return "busy";
+  return "other";
+}
+
 // Keeps the front camera running for as long as the kiosk is open, so the
 // permission prompt only appears once and a snapshot can be taken instantly.
 function useCamera(enabled: boolean) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [state, setState] = useState<"starting" | "ready" | "failed">("starting");
+  const [state, setState] = useState<"starting" | "ready" | CameraFailure>("starting");
 
   useEffect(() => {
     if (!enabled) return;
@@ -56,7 +67,7 @@ function useCamera(enabled: boolean) {
         if (videoRef.current) videoRef.current.srcObject = s;
         setState("ready");
       })
-      .catch(() => setState("failed"));
+      .catch((err) => setState(classifyCameraError(err)));
 
     return () => {
       cancelled = true;
@@ -200,7 +211,26 @@ export function KioskView({
     );
   }
 
-  const cameraBlocked = cameraState === "failed";
+  const cameraBlocked = cameraState !== "starting" && cameraState !== "ready";
+  const cameraMessage: Record<CameraFailure, [string, string]> = {
+    insecure: [
+      "يجب فتح هذه الصفحة عبر https:// لاستعمال الكاميرا.",
+      "Ouvrez cette page en https:// pour utiliser la caméra.",
+    ],
+    denied: [
+      "تم رفض الوصول إلى الكاميرا. اسمح بالكاميرا لهذا الموقع في إعدادات المتصفح ثم أعد تحميل الصفحة.",
+      "Accès à la caméra refusé. Autorisez la caméra pour ce site dans les réglages du navigateur, puis rechargez la page.",
+    ],
+    missing: [
+      "لم يتم العثور على أي كاميرا في هذا الجهاز.",
+      "Aucune caméra détectée sur cet appareil.",
+    ],
+    busy: [
+      "الكاميرا مستعملة من طرف تطبيق آخر. أغلقه ثم أعد تحميل الصفحة.",
+      "La caméra est utilisée par une autre application. Fermez-la puis rechargez la page.",
+    ],
+    other: ["الكاميرا غير متاحة. أعد تحميل الصفحة.", "Caméra indisponible. Rechargez la page."],
+  };
 
   return (
     <main className="flex min-h-screen flex-col px-4 py-6 sm:px-8">
@@ -217,11 +247,7 @@ export function KioskView({
 
       {cameraBlocked && (
         <p className="mb-4 rounded-lg border border-red-500/50 bg-red-500/10 px-4 py-3 text-center text-red-300">
-          {pick(
-            lang,
-            "الكاميرا غير متاحة. يجب السماح بالوصول إلى الكاميرا (ويتطلب ذلك HTTPS) لتسجيل الحضور.",
-            "Caméra indisponible. Autorisez l'accès à la caméra (HTTPS requis) pour pointer."
-          )}
+          {cameraBlocked && pick(lang, ...cameraMessage[cameraState])}
         </p>
       )}
 
