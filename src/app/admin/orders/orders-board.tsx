@@ -6,6 +6,7 @@ import { useLanguage, pick } from "@/lib/language-context";
 import { advanceOrderStatus, cancelOrder, confirmNewItems } from "@/app/actions/orders";
 import {
   ORDER_STATUS_LABEL,
+  formatOrderNumber,
   nextOrderStatus,
   type OrderStatus,
 } from "@/lib/order-status";
@@ -33,6 +34,7 @@ type OrderLine = {
 
 type OrderView = {
   id: string;
+  number: number | null;
   tableNumber: string;
   guestName: string | null;
   deliveryAddress: string | null;
@@ -247,6 +249,11 @@ function OrderCard({
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-sm font-medium text-neutral-900">
+            {order.number != null && (
+              <span className="mr-1.5 font-semibold text-[var(--sindibad-maroon-dark)]">
+                #{formatOrderNumber(order.number)}
+              </span>
+            )}
             {order.guestName || pick(lang, "زبون", "Client")}
             {order.hasLoyaltyPhone && (
               <span
@@ -506,7 +513,13 @@ function playNotificationChime() {
   }
 }
 
-const KANBAN_STATUSES: OrderStatus[] = ["SENT", "CONFIRMED", "COMPLETED"];
+const KANBAN_STATUSES: OrderStatus[] = [
+  "SENT",
+  "CONFIRMED",
+  "PREPARING",
+  "READY",
+  "COMPLETED",
+];
 
 type Toast = { id: number; text: string };
 

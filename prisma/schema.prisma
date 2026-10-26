@@ -187,10 +187,12 @@ model LoyaltyOffer {
 
 model Order {
   id                 String              @id @default(cuid())
+  number             Int? // short daily ticket number shown on the pickup display; resets each day
   tableNumber        String
   guestName          String?
   deliveryAddress    String?
   status             String              @default("SENT") // "SENT" | "CONFIRMED" | "PREPARING" | "READY" | "COMPLETED" | "CANCELLED"
+  readyAt            DateTime?
   note               String?
   total              Float
   customerId         String?
@@ -200,6 +202,8 @@ model Order {
   pushSubscriptions  PushSubscription[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
+
+  @@index([status])
 }
 
 model PushSubscription {

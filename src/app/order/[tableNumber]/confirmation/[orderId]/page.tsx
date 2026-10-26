@@ -31,6 +31,7 @@ export default async function OrderConfirmationPage({
     <OrderStatusTracker
       tableNumber={order.tableNumber}
       orderId={order.id}
+      orderNumber={order.number}
       guestName={order.guestName}
       deliveryAddress={order.deliveryAddress}
       total={order.total}

@@ -12,6 +12,7 @@ import {
   IconStar,
   IconGift,
   IconCart,
+  IconFlame,
   IconClipboard,
   IconPackage,
   IconHeart,
@@ -23,6 +24,13 @@ import {
 type IconComponent = (props: { className?: string }) => ReactElement;
 
 type NavLink = { href: string; ar: string; fr: string; icon: IconComponent };
+const KITCHEN_LINK: NavLink = {
+  href: "/admin/kitchen",
+  icon: IconFlame,
+  ar: "المطبخ",
+  fr: "Cuisine",
+};
+
 type NavEntry =
   | ({ type: "link" } & NavLink)
   | {
@@ -44,6 +52,7 @@ function buildNav(role: string): NavEntry[] {
         ar: "الجرد",
         fr: "Inventaire",
       },
+      { type: "link", ...KITCHEN_LINK },
     ];
   }
 
@@ -88,6 +97,7 @@ function buildNav(role: string): NavEntry[] {
     ar: "الطلبات",
     fr: "Commandes",
   });
+  entries.push({ type: "link", ...KITCHEN_LINK });
 
   if (role === "ADMIN") {
     entries.push({

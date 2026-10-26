@@ -9,6 +9,7 @@ import {
   ORDER_STATUS_FLOW,
   ORDER_STATUS_LABEL,
   canAddItemsToOrder,
+  formatOrderNumber,
   type OrderStatus,
 } from "@/lib/order-status";
 import { isTakeawayTable, isDeliveryTable } from "@/lib/order-mode";
@@ -65,6 +66,7 @@ function playNotificationSound() {
 export function OrderStatusTracker({
   tableNumber,
   orderId,
+  orderNumber,
   guestName,
   deliveryAddress,
   total,
@@ -75,6 +77,7 @@ export function OrderStatusTracker({
 }: {
   tableNumber: string;
   orderId: string;
+  orderNumber: number | null;
   guestName: string | null;
   deliveryAddress: string | null;
   total: number;
@@ -230,6 +233,16 @@ export function OrderStatusTracker({
           <p className="mt-1 text-xs text-[var(--sindibad-muted)]">
             {deliveryAddress}
           </p>
+        )}
+        {orderNumber != null && (
+          <div className="mt-4">
+            <p className="text-xs uppercase tracking-widest text-[var(--sindibad-muted)]">
+              {pick(lang, "رقم طلبك", "Votre numéro")}
+            </p>
+            <p className="font-display text-6xl tracking-wide text-[var(--sindibad-ink)]">
+              {formatOrderNumber(orderNumber)}
+            </p>
+          </div>
         )}
         <p className="mt-3 text-5xl">{label.emoji}</p>
         <p className="font-display mt-3 text-2xl tracking-wide text-[var(--sindibad-maroon)]">

@@ -187,8 +187,17 @@ export async function placeOrder(
   }
 
   const order = await prisma.$transaction(async (tx) => {
+    // Daily ticket number for the pickup display, restarting at 1 each morning.
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const lastToday = await tx.order.aggregate({
+      where: { createdAt: { gte: todayStart } },
+      _max: { number: true },
+    });
+
     return tx.order.create({
       data: {
+        number: (lastToday._max.number ?? 0) + 1,
         tableNumber,
         guestName: guestName || null,
         deliveryAddress: address || null,
@@ -247,7 +256,7 @@ export async function addItemsToOrder(
   // Items added after a cashier already confirmed the order need a separate
   // re-confirmation, without un-confirming the order itself in front of the
   // customer (that would revert their "confirmed" status screen/notification).
-  const needsConfirmation = order.status === "CONFIRMED";
+  const needsConfirmation = order.status !== "SENT";
 
   await prisma.$transaction(async (tx) => {
     await tx.orderItem.createMany({
@@ -311,7 +320,10 @@ async function setOrderStatus(orderId: string, status: OrderStatus) {
 
   const order = await prisma.order.update({
     where: { id: orderId },
-    data: { status },
+    data: {
+      status,
+      ...(status === "READY" ? { readyAt: new Date() } : {}),
+    },
   });
 
   if (status === "CONFIRMED" && order.customerId) {
@@ -336,6 +348,7 @@ async function setOrderStatus(orderId: string, status: OrderStatus) {
   }
 
   revalidatePath("/admin/orders");
+  revalidatePath("/admin/kitchen");
   revalidatePath("/admin/loyalty");
 }
 

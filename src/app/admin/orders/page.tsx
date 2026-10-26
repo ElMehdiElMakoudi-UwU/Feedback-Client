@@ -75,6 +75,7 @@ export default async function AdminOrdersPage() {
         )}
       initialOrders={orders.map((order) => ({
         id: order.id,
+        number: order.number,
         tableNumber: order.tableNumber,
         guestName: order.guestName,
         deliveryAddress: order.deliveryAddress,

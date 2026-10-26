@@ -12,10 +12,13 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const orderId = searchParams.get("orderId");
   const tableRequestId = searchParams.get("tableRequestId");
+  // The public pickup display only learns that some order changed status —
+  // never which order or table — and re-fetches its own sanitized list.
+  const display = searchParams.get("display") === "1";
 
   // Customers may follow their own order or table request; the unfiltered
   // stream (every order and table call) is staff-only.
-  if (!orderId && !tableRequestId) {
+  if (!orderId && !tableRequestId && !display) {
     const staff = await getStaffSession();
     if (!staff) return new Response("Unauthorized", { status: 401 });
   }
@@ -27,6 +30,14 @@ export async function GET(request: Request) {
       const send = (event: OrderEvent) => {
         if (tableRequestId) return;
         if (orderId && event.orderId !== orderId) return;
+        if (display) {
+          controller.enqueue(
+            encoder.encode(
+              `data: ${JSON.stringify({ kind: event.kind, status: event.status })}\n\n`
+            )
+          );
+          return;
+        }
         controller.enqueue(
           encoder.encode(`data: ${JSON.stringify(event)}\n\n`)
         );
@@ -35,7 +46,7 @@ export async function GET(request: Request) {
       // Sent as a named SSE event so existing `onmessage` listeners, which
       // expect an OrderEvent payload, never see it.
       const sendTableRequest = (event: TableRequestEvent) => {
-        if (orderId) return;
+        if (orderId || display) return;
         if (tableRequestId && event.requestId !== tableRequestId) return;
         controller.enqueue(
           encoder.encode(
