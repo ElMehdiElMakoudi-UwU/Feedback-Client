@@ -1,41 +1,19 @@
+import { redirect } from "next/navigation";
 import { requireStaff } from "@/lib/require-admin";
-import { prisma } from "@/lib/prisma";
-import { KITCHEN_STATUSES, type OrderStatus } from "@/lib/order-status";
 import { KitchenBoard } from "./kitchen-board";
+import { loadKitchenBoard } from "./load-kitchen";
 
 export const dynamic = "force-dynamic";
 
+// The passe: the whole kitchen at a glance. Cooks assigned to a poste land
+// straight on their own screen.
 export default async function AdminKitchenPage() {
-  await requireStaff();
+  const user = await requireStaff();
+  if (user.role === "WORKER" && user.workstationId) {
+    redirect(`/admin/kitchen/poste/${user.workstationId}`);
+  }
 
-  const orders = await prisma.order.findMany({
-    where: { status: { in: KITCHEN_STATUSES } },
-    orderBy: { createdAt: "asc" },
-    include: { items: { orderBy: { createdAt: "asc" } } },
-  });
+  const { stations, orders, renderedAt } = await loadKitchenBoard();
 
-  return (
-    <KitchenBoard
-      orders={orders.map((order) => ({
-        id: order.id,
-        number: order.number,
-        tableNumber: order.tableNumber,
-        guestName: order.guestName,
-        note: order.note,
-        status: order.status as OrderStatus,
-        createdAt: order.createdAt.toISOString(),
-        readyAt: order.readyAt?.toISOString() ?? null,
-        items: order.items.map((item) => ({
-          id: item.id,
-          nameAr: item.nameAr,
-          nameFr: item.nameFr,
-          size: item.size,
-          optionsAr: item.optionsAr,
-          optionsFr: item.optionsFr,
-          quantity: item.quantity,
-          confirmed: item.confirmed,
-        })),
-      }))}
-    />
-  );
+  return <KitchenBoard orders={orders} stations={stations} renderedAt={renderedAt} />;
 }

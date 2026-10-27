@@ -6,29 +6,12 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireStaff } from "@/lib/require-admin";
 import { emitOrderEvent } from "@/lib/order-events";
-import { sendOrderPushNotification } from "@/lib/push";
 import { resolveOptions } from "@/lib/menu-options";
-import {
-  nextOrderStatus,
-  canAddItemsToOrder,
-  ORDER_STATUS_LABEL,
-  type OrderStatus,
-} from "@/lib/order-status";
+import { fireOrderItems, STATION_ACTIVE_STATUSES } from "@/lib/kitchen";
+import { setOrderStatus } from "@/lib/order-transitions";
+import { canAddItemsToOrder, type OrderStatus } from "@/lib/order-status";
 
 const phoneRegex = /^[0-9+\s-]{8,20}$/;
-
-// Give guests time to actually eat before asking them to rate the meal.
-const FEEDBACK_REMINDER_DELAY_MS = 12 * 60 * 1000;
-
-function scheduleFeedbackReminder(orderId: string, tableNumber: string) {
-  setTimeout(() => {
-    sendOrderPushNotification(orderId, {
-      title: "Sindibad",
-      body: "⭐ Comment était votre repas ? Donnez votre avis / كيف كانت وجبتكم؟ شاركونا رأيكم",
-      url: `/feedback?table=${encodeURIComponent(tableNumber)}`,
-    }).catch(() => {});
-  }, FEEDBACK_REMINDER_DELAY_MS);
-}
 
 const placeOrderSchema = z.object({
   tableNumber: z.string().trim().min(1, "Table number is required").max(20),
@@ -283,75 +266,6 @@ export async function addItemsToOrder(
   redirect(`/order/${encodeURIComponent(tableNumber)}/confirmation/${orderId}`);
 }
 
-async function awardLoyaltyPoints(
-  orderId: string,
-  customerId: string,
-  total: number,
-  staffId: string
-) {
-  const points = Math.floor(total);
-  if (points <= 0) return;
-
-  await prisma.$transaction(async (tx) => {
-    const alreadyAwarded = await tx.pointsTransaction.findFirst({
-      where: { orderId },
-    });
-    if (alreadyAwarded) return;
-
-    await tx.customer.update({
-      where: { id: customerId },
-      data: { points: { increment: points } },
-    });
-    await tx.pointsTransaction.create({
-      data: {
-        customerId,
-        points,
-        orderTotal: total,
-        orderId,
-        createdById: staffId,
-        note: "Points automatiques - commande confirmée",
-      },
-    });
-  });
-}
-
-async function setOrderStatus(orderId: string, status: OrderStatus) {
-  const staff = await requireStaff();
-
-  const order = await prisma.order.update({
-    where: { id: orderId },
-    data: {
-      status,
-      ...(status === "READY" ? { readyAt: new Date() } : {}),
-    },
-  });
-
-  if (status === "CONFIRMED" && order.customerId) {
-    await awardLoyaltyPoints(order.id, order.customerId, order.total, staff.id);
-  }
-
-  emitOrderEvent({
-    orderId: order.id,
-    tableNumber: order.tableNumber,
-    status: order.status as OrderStatus,
-    kind: "status_changed",
-  });
-
-  const label = ORDER_STATUS_LABEL[order.status as OrderStatus];
-  await sendOrderPushNotification(order.id, {
-    title: "Sindibad",
-    body: `${label.emoji} ${label.fr} / ${label.ar}`,
-  });
-
-  if (status === "COMPLETED") {
-    scheduleFeedbackReminder(order.id, order.tableNumber);
-  }
-
-  revalidatePath("/admin/orders");
-  revalidatePath("/admin/kitchen");
-  revalidatePath("/admin/loyalty");
-}
-
 const pushSubscriptionSchema = z.object({
   orderId: z.string().min(1),
   endpoint: z.string().url(),
@@ -381,8 +295,22 @@ export async function subscribeToOrderPush(
   return { status: "ok" as const };
 }
 
-export async function advanceOrderStatus(orderId: string, current: OrderStatus) {
-  const next = nextOrderStatus(current);
+// The front-of-house steps only: confirm a new order, and hand over one the
+// passe has sent. Cooking and "ready" belong to the kitchen screens, so an
+// order can't be marked ready from the cashier's board while still cooking.
+const CASHIER_TRANSITIONS: Partial<Record<OrderStatus, OrderStatus>> = {
+  SENT: "CONFIRMED",
+  READY: "COMPLETED",
+};
+
+export async function advanceOrderStatus(orderId: string) {
+  await requireStaff();
+  // Trust the database, not the screen: the order may have moved since it rendered.
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { status: true },
+  });
+  const next = order && CASHIER_TRANSITIONS[order.status as OrderStatus];
   if (!next) return;
   await setOrderStatus(orderId, next);
 }
@@ -394,9 +322,16 @@ export async function cancelOrder(orderId: string) {
 export async function confirmNewItems(orderId: string) {
   await requireStaff();
 
-  const order = await prisma.order.update({
-    where: { id: orderId },
-    data: { items: { updateMany: { where: { confirmed: false }, data: { confirmed: true } } } },
+  const order = await prisma.$transaction(async (tx) => {
+    const updated = await tx.order.update({
+      where: { id: orderId },
+      data: { items: { updateMany: { where: { confirmed: false }, data: { confirmed: true } } } },
+    });
+    // Additions to an order the kitchen is already working on go straight to the postes.
+    if (STATION_ACTIVE_STATUSES.includes(updated.status)) {
+      await fireOrderItems(tx, orderId);
+    }
+    return updated;
   });
 
   emitOrderEvent({
@@ -407,4 +342,5 @@ export async function confirmNewItems(orderId: string) {
   });
 
   revalidatePath("/admin/orders");
+  revalidatePath("/admin/kitchen", "layout");
 }

@@ -98,7 +98,26 @@ function buildNav(role: string): NavEntry[] {
     ar: "الطلبات",
     fr: "Commandes",
   });
-  entries.push({ type: "link", ...KITCHEN_LINK });
+  if (role === "ADMIN") {
+    entries.push({
+      type: "group",
+      key: "kitchen",
+      icon: IconFlame,
+      ar: KITCHEN_LINK.ar,
+      fr: KITCHEN_LINK.fr,
+      items: [
+        { ...KITCHEN_LINK, ar: "الباس", fr: "Passe" },
+        {
+          href: "/admin/kitchen/performance",
+          icon: IconGrid,
+          ar: "أداء المطبخ",
+          fr: "Performance",
+        },
+      ],
+    });
+  } else {
+    entries.push({ type: "link", ...KITCHEN_LINK });
+  }
 
   if (role === "ADMIN") {
     entries.push({

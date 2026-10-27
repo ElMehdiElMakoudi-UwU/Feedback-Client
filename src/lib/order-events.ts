@@ -10,7 +10,9 @@ export type OrderEventKind =
   | "created"
   | "items_added"
   | "items_confirmed"
-  | "status_changed";
+  | "status_changed"
+  // A poste started or finished its part of the order, or the passe rushed it.
+  | "kitchen_progress";
 
 export type OrderEvent = {
   orderId: string;

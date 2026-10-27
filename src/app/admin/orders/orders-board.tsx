@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLanguage, pick } from "@/lib/language-context";
 import { advanceOrderStatus, cancelOrder, confirmNewItems } from "@/app/actions/orders";
@@ -169,7 +170,10 @@ function KpiCard({
   );
 }
 
+// The cashier confirms new orders and hands over ready ones; in between, the
+// order belongs to the kitchen (postes + passe), which marks it ready.
 function nextActionLabel(status: OrderStatus, lang: "ar" | "fr") {
+  if (status !== "SENT" && status !== "READY") return null;
   const next = nextOrderStatus(status);
   if (!next) return null;
   return pick(
@@ -376,12 +380,20 @@ function OrderCard({
               {pick(lang, "إلغاء", "Annuler")}
             </button>
           )}
+          {(order.status === "CONFIRMED" || order.status === "PREPARING") && (
+            <Link
+              href="/admin/kitchen"
+              className="rounded-md border border-neutral-300 px-3 py-2 text-xs text-neutral-600 hover:border-neutral-500"
+            >
+              👨‍🍳 {pick(lang, "في المطبخ ←", "En cuisine →")}
+            </Link>
+          )}
           {nextLabel && (
             <button
               type="button"
               disabled={pending}
               onClick={() =>
-                startTransition(() => advanceOrderStatus(order.id, order.status))
+                startTransition(() => advanceOrderStatus(order.id))
               }
               className="rounded-md bg-neutral-900 px-3 py-2 text-xs text-white hover:bg-neutral-700 disabled:opacity-40"
             >

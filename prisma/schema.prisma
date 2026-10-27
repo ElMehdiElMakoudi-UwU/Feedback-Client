@@ -193,6 +193,8 @@ model Order {
   deliveryAddress    String?
   status             String              @default("SENT") // "SENT" | "CONFIRMED" | "PREPARING" | "READY" | "COMPLETED" | "CANCELLED"
   readyAt            DateTime?
+  completedAt        DateTime? // handed over by the passe; readyAt → completedAt is the passe's own delay
+  rushedAt           DateTime? // the passe asked the postes to hurry this order
   note               String?
   total              Float
   customerId         String?
@@ -233,6 +235,20 @@ model OrderItem {
   quantity   Int       @default(1)
   confirmed  Boolean   @default(true)
   createdAt  DateTime  @default(now())
+
+  // Kitchen display (KDS). An item is "fired" to its poste once the cashier has
+  // confirmed it; the poste is snapshotted then, so re-routing a menu item
+  // later never moves tickets already in the kitchen or rewrites history.
+  workstationId String?
+  workstation   Workstation? @relation(fields: [workstationId], references: [id], onDelete: SetNull)
+  firedAt       DateTime?
+  // Set when the poste would finish long before the order's slowest poste:
+  // the ticket waits until then so every plate reaches the passe together.
+  holdUntil     DateTime?
+  startedAt     DateTime?
+  doneAt        DateTime?
+
+  @@index([workstationId, doneAt])
 }
 
 model Kitchen {
@@ -249,9 +265,17 @@ model Workstation {
   kitchen     Kitchen                 @relation(fields: [kitchenId], references: [id], onDelete: Cascade)
   name        String
   sortOrder   Int                     @default(0)
+  // KDS: a ticket older than this is late; staffCount is how many cooks the
+  // manager has on the poste right now, used to judge load per person.
+  targetMinutes Int                   @default(12)
+  staffCount    Int                   @default(1)
+  // Time this poste's tickets to finish with the rest of the order. Off for
+  // postes whose items go out on their own, e.g. drinks.
+  syncWithOrder Boolean               @default(true)
   ingredients WorkstationIngredient[]
   workers     AdminUser[]
   menuItems   MenuItem[]
+  orderItems  OrderItem[]
   stockCounts StockCount[]
   createdAt   DateTime                @default(now())
 }
