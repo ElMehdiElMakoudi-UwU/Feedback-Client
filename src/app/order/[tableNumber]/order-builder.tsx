@@ -10,7 +10,7 @@ import { isTakeawayTable, isDeliveryTable } from "@/lib/order-mode";
 import type { MenuSectionView, MenuItemView } from "@/app/menu/types";
 import { resolveOptions, formatPriceDelta } from "@/lib/menu-options";
 
-type Size = "REGULAR" | "LARGE";
+export type Size = "REGULAR" | "LARGE";
 
 type CartLine = {
   menuItemId: string;
@@ -24,13 +24,13 @@ type CartLine = {
   quantity: number;
 };
 
-type PendingAdd = { item: MenuItemView; size: Size | null; basePrice: number };
+export type PendingAdd = { item: MenuItemView; size: Size | null; basePrice: number };
 
-function cartKey(menuItemId: string, size: Size | null, optionIds: string[]) {
+export function cartKey(menuItemId: string, size: Size | null, optionIds: string[]) {
   return `${menuItemId}:${size ?? "REGULAR"}:${[...optionIds].sort().join(",")}`;
 }
 
-function OptionPicker({
+export function OptionPicker({
   pendingAdd,
   lang,
   onCancel,

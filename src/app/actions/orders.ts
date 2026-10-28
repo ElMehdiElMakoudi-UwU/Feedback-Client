@@ -10,6 +10,7 @@ import { resolveOptions } from "@/lib/menu-options";
 import { fireOrderItems, STATION_ACTIVE_STATUSES } from "@/lib/kitchen";
 import { setOrderStatus } from "@/lib/order-transitions";
 import { canAddItemsToOrder, type OrderStatus } from "@/lib/order-status";
+import { DELIVERY_TABLE_VALUE, TAKEAWAY_TABLE_VALUE } from "@/lib/order-mode";
 
 const phoneRegex = /^[0-9+\s-]{8,20}$/;
 
@@ -137,6 +138,134 @@ async function buildLineItems(
   return { ok: true, lineItems };
 }
 
+type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+
+// Daily ticket number for the pickup display, restarting at 1 each morning.
+async function nextDailyOrderNumber(tx: Tx) {
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const lastToday = await tx.order.aggregate({
+    where: { createdAt: { gte: todayStart } },
+    _max: { number: true },
+  });
+  return (lastToday._max.number ?? 0) + 1;
+}
+
+// No 0/O or 1/I/L: drivers may type the code from the WhatsApp message by hand.
+const TRACKING_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+const TRACKING_CODE_LENGTH = 5;
+
+function randomTrackingCode() {
+  const bytes = crypto.getRandomValues(new Uint8Array(TRACKING_CODE_LENGTH));
+  return Array.from(bytes, (b) => TRACKING_ALPHABET[b % TRACKING_ALPHABET.length]).join("");
+}
+
+async function uniqueTrackingCode() {
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const code = randomTrackingCode();
+    const taken = await prisma.order.findUnique({
+      where: { trackingCode: code },
+      select: { id: true },
+    });
+    if (!taken) return code;
+  }
+  throw new Error("Could not generate a tracking code");
+}
+
+const whatsAppOrderSchema = z.object({
+  mode: z.enum(["DELIVERY", "TAKEAWAY"]),
+  guestName: z.string().trim().max(60).optional().or(z.literal("")),
+  contactPhone: z
+    .string()
+    .trim()
+    .regex(phoneRegex, "Numéro WhatsApp invalide")
+    .optional()
+    .or(z.literal("")),
+  address: z.string().trim().max(300).optional().or(z.literal("")),
+  note: z.string().trim().max(500).optional().or(z.literal("")),
+  items: placeOrderSchema.shape.items,
+});
+
+export type WhatsAppOrderInput = z.infer<typeof whatsAppOrderSchema>;
+
+export type WhatsAppOrderState =
+  | {
+      status: "ok";
+      orderId: string;
+      number: number;
+      trackingCode: string;
+      contactPhone: string | null;
+      total: number;
+    }
+  | { status: "error"; message: string };
+
+// Staff typing in an order received on WhatsApp (usually from a delivery
+// driver). The order skips the cashier's "new order" step — staff wrote it
+// themselves — and goes straight to the kitchen. The driver gets a short
+// tracking code instead of the order id, so tickets can't be guessed.
+export async function placeWhatsAppOrder(
+  input: WhatsAppOrderInput
+): Promise<WhatsAppOrderState> {
+  await requireStaff();
+
+  const parsed = whatsAppOrderSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      status: "error",
+      message: parsed.error.issues[0]?.message ?? "Commande invalide",
+    };
+  }
+
+  const { mode, guestName, contactPhone, address, note, items } = parsed.data;
+
+  const built = await buildLineItems(items);
+  if (!built.ok) return { status: "error", message: built.message };
+  const lineItems = built.lineItems;
+
+  const total = lineItems.reduce(
+    (sum, item) => sum + item.unitPrice * item.quantity,
+    0
+  );
+
+  const trackingCode = await uniqueTrackingCode();
+
+  const order = await prisma.$transaction(async (tx) =>
+    tx.order.create({
+      data: {
+        number: await nextDailyOrderNumber(tx),
+        tableNumber: mode === "DELIVERY" ? DELIVERY_TABLE_VALUE : TAKEAWAY_TABLE_VALUE,
+        source: "WHATSAPP",
+        trackingCode,
+        guestName: guestName || null,
+        contactPhone: contactPhone || null,
+        deliveryAddress: address || null,
+        note: note || null,
+        total,
+        items: { create: lineItems },
+      },
+    })
+  );
+
+  emitOrderEvent({
+    orderId: order.id,
+    tableNumber: order.tableNumber,
+    status: order.status as OrderStatus,
+    kind: "created",
+  });
+
+  // Fires the items to the postes, notifies screens and revalidates.
+  await setOrderStatus(order.id, "CONFIRMED");
+
+  return {
+    status: "ok",
+    orderId: order.id,
+    number: order.number!,
+    trackingCode,
+    contactPhone: order.contactPhone,
+    total,
+  };
+}
+
 export async function placeOrder(
   input: PlaceOrderInput
 ): Promise<PlaceOrderState> {
@@ -170,17 +299,9 @@ export async function placeOrder(
   }
 
   const order = await prisma.$transaction(async (tx) => {
-    // Daily ticket number for the pickup display, restarting at 1 each morning.
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const lastToday = await tx.order.aggregate({
-      where: { createdAt: { gte: todayStart } },
-      _max: { number: true },
-    });
-
     return tx.order.create({
       data: {
-        number: (lastToday._max.number ?? 0) + 1,
+        number: await nextDailyOrderNumber(tx),
         tableNumber,
         guestName: guestName || null,
         deliveryAddress: address || null,

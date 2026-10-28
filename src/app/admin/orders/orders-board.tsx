@@ -40,6 +40,9 @@ type OrderView = {
   guestName: string | null;
   deliveryAddress: string | null;
   customerPhone: string | null;
+  source: string;
+  trackingCode: string | null;
+  contactPhone: string | null;
   note: string | null;
   total: number;
   status: OrderStatus;
@@ -259,6 +262,11 @@ function OrderCard({
               </span>
             )}
             {order.guestName || pick(lang, "زبون", "Client")}
+            {order.source === "WHATSAPP" && (
+              <span className="ml-1.5 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-semibold text-green-800">
+                WhatsApp
+              </span>
+            )}
             {order.hasLoyaltyPhone && (
               <span
                 title={pick(
@@ -344,9 +352,18 @@ function OrderCard({
       {(isDeliveryTable(order.tableNumber) ||
         isTakeawayTable(order.tableNumber)) && (
         <div className="mt-3 rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-900">
-          {order.customerPhone && (
+          {(order.customerPhone || order.contactPhone) && (
             <p className="font-medium">
-              {pick(lang, "الهاتف", "Téléphone")}: {order.customerPhone}
+              {pick(lang, "الهاتف", "Téléphone")}:{" "}
+              {order.customerPhone ?? order.contactPhone}
+            </p>
+          )}
+          {order.trackingCode && (
+            <p className="mt-0.5">
+              {pick(lang, "رمز التتبع", "Code de suivi")}:{" "}
+              <span className="font-mono font-semibold tracking-wider">
+                {order.trackingCode}
+              </span>
             </p>
           )}
           {order.deliveryAddress && (
@@ -671,6 +688,8 @@ export function OrdersBoard({
         order.tableNumber,
         order.guestName ?? "",
         order.customerPhone ?? "",
+        order.contactPhone ?? "",
+        order.trackingCode ?? "",
         order.deliveryAddress ?? "",
       ]
         .join(" ")
@@ -712,6 +731,13 @@ export function OrdersBoard({
         <h1 className="text-2xl font-semibold tracking-tight">
           {pick(lang, "الطلبات", "Commandes")}
         </h1>
+        <div className="flex items-center gap-2">
+        <Link
+          href="/admin/orders/new"
+          className="rounded-md bg-[#25D366] px-3 py-2 text-xs font-semibold text-white hover:opacity-90"
+        >
+          + {pick(lang, "طلب واتساب", "Commande WhatsApp")}
+        </Link>
         <button
           type="button"
           onClick={toggleMuted}
@@ -721,6 +747,7 @@ export function OrdersBoard({
             ? pick(lang, "🔕 الصوت متوقف", "🔕 Son désactivé")
             : pick(lang, "🔔 الصوت مفعّل", "🔔 Son activé")}
         </button>
+        </div>
       </div>
 
       {tableRequests.length > 0 && (

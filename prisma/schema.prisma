@@ -191,6 +191,9 @@ model Order {
   tableNumber        String
   guestName          String?
   deliveryAddress    String?
+  source             String              @default("WEB") // "WEB" | "WHATSAPP" (typed in by staff from a WhatsApp message)
+  trackingCode       String?             @unique // short public code for the /suivi/<code> page sent to the driver
+  contactPhone       String? // driver's WhatsApp number; kept off Customer so drivers never earn loyalty points
   status             String              @default("SENT") // "SENT" | "CONFIRMED" | "PREPARING" | "READY" | "COMPLETED" | "CANCELLED"
   readyAt            DateTime?
   completedAt        DateTime? // handed over by the passe; readyAt → completedAt is the passe's own delay
